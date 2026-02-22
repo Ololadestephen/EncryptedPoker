@@ -859,7 +859,15 @@ export const GameTablePage: React.FC = () => {
     } finally {
       setIsActing(false);
     }
-  }, [publicKey, tableId, program, refetch]);
+  }, [publicKey, tableId, program, refetch, players]);
+
+  const handleAdvancePhase = useCallback(async () => {
+    if (phase === 'River') {
+      await handleTriggerShowdown();
+    } else {
+      await handleDealCommunityCards();
+    }
+  }, [phase, handleTriggerShowdown, handleDealCommunityCards]);
 
   const handleReact = useCallback(async (reactionType: number) => {
     if (!publicKey || !myPlayer) return;
@@ -1401,10 +1409,10 @@ export const GameTablePage: React.FC = () => {
           )}
 
           {/* Creator Controls (Deal button) */}
-          {table && publicKey && table.creator.toBase58() === publicKey.toBase58() && (['PreFlop', 'Flop', 'Turn', 'River'].includes(phase)) && (
+          {table && publicKey && table.creator.toBase58() === publicKey.toBase58() && (['PreFlop', 'Flop', 'Turn', 'River', 'Showdown'].includes(phase)) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button
-                onClick={handleDealCommunityCards}
+                onClick={handleAdvancePhase}
                 disabled={isActing}
                 className="btn btn-gold"
                 style={{ width: '100%', padding: '0.75rem', fontSize: '0.9rem', gap: '0.5rem' }}
