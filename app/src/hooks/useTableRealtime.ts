@@ -154,10 +154,15 @@ export function useTableRealtime(tableId: string | null) {
 
           for (const raw of accounts) {
             try {
-              if (raw.account.data.length < expectedSize) {
-                console.warn(`[useTableRealtime] Player ${raw.pubkey.toBase58()} size mismatch: expected >=${expectedSize}, got ${raw.account.data.length}. (Possibly stale program on-chain?)`);
+              let data = raw.account.data;
+              if (data.length < expectedSize) {
+                console.warn(`[useTableRealtime] Player ${raw.pubkey.toBase58()} size mismatch: got ${data.length}, expected ${expectedSize}. Padding with zeros.`);
+                // Pad the buffer to the expected size so the decoder doesn't throw RangeError
+                const padded = Buffer.alloc(expectedSize);
+                data.copy(padded);
+                data = padded;
               }
-              const decoded = program.coder.accounts.decode('player', raw.account.data);
+              const decoded = program.coder.accounts.decode('player', data);
               decodedPlayers.push({ ...decoded, publicKey: raw.pubkey });
             } catch (e: any) {
               console.warn(`[useTableRealtime] Failed to decode player ${raw.pubkey.toBase58()}:`, e.message);
