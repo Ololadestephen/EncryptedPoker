@@ -9,6 +9,7 @@ import * as anchor from '@coral-xyz/anchor';
 import { POKER_PROGRAM_ID, ARCIUM_MXE_PUBKEY, SOLANA_NETWORK } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
 import { PublicKey } from '@solana/web3.js';
+import { parseTxError } from '../lib/parseTxError';
 
 // ===== Player Seat =====
 const SEAT_POSITIONS = [
@@ -608,6 +609,7 @@ export const GameTablePage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('[GameTable] Join failed:', err);
+      alert(parseTxError(err));
     } finally {
       setIsActing(false);
     }
@@ -628,6 +630,7 @@ export const GameTablePage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('[GameTable] Start failed:', err);
+      alert(parseTxError(err));
     } finally {
       setIsActing(false);
     }
@@ -664,6 +667,7 @@ export const GameTablePage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('[GameTable] Action failed:', err);
+      alert(parseTxError(err));
     } finally {
       setIsActing(false);
     }
@@ -684,6 +688,7 @@ export const GameTablePage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('[GameTable] Deal community cards failed:', err);
+      alert(parseTxError(err));
     } finally {
       setIsActing(false);
     }
@@ -704,6 +709,7 @@ export const GameTablePage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('[GameTable] Trigger showdown failed:', err);
+      alert(parseTxError(err));
     } finally {
       setIsActing(false);
     }

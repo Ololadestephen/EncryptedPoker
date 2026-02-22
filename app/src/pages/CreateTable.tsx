@@ -6,6 +6,7 @@ import * as anchor from '@coral-xyz/anchor';
 import { Layout } from '../components/layout/Layout';
 import { POKER_PROGRAM_ID, ARCIUM_MXE_PUBKEY } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
+import { parseTxError } from '../lib/parseTxError';
 
 const BLIND_PRESETS = [
   { label: 'Nano', sb: 1, bb: 2, desc: 'Learning stakes' },
@@ -176,9 +177,9 @@ export const CreateTablePage: React.FC = () => {
         .rpc();
 
       navigate(`/table/table-${tableId.toString()}`);
-    } catch (err: any) {
+    } catch (err) {
       console.error('[CreateTable] Error:', err);
-      setError(err.message ?? 'Transaction failed');
+      setError(parseTxError(err));
     } finally {
       setIsSubmitting(false);
     }
