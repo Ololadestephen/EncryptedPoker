@@ -43,6 +43,16 @@ export function deriveTablePDA(tableId: string): PublicKey {
   return pda;
 }
 
+// Robustly convert a number or BN to a 8-byte LE buffer
+export function toBufferLE(val: number | anchor.BN, size = 8): Buffer {
+  if (typeof val === 'number') {
+    const buf = Buffer.alloc(size);
+    buf.writeBigUInt64LE(BigInt(val));
+    return buf;
+  }
+  return val.toArrayLike(Buffer, 'le', size);
+}
+
 export function useTableRealtime(tableId: string | null) {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
@@ -78,15 +88,21 @@ export function useTableRealtime(tableId: string | null) {
       const cached = localStorage.getItem(getCacheKey(tableId));
       if (cached) {
         const parsed = JSON.parse(cached);
-        // Convert string pubkeys back to PublicKey objects
+        // Convert string pubkeys back to PublicKey objects and numbers to BN
         const hydrated = parsed.map((p: any) => ({
           ...p,
           publicKey: new PublicKey(p.publicKey),
           wallet: new PublicKey(p.wallet),
+          chipCount: new anchor.BN(p.chipCount),
+          currentBet: new anchor.BN(p.currentBet),
+          totalContributed: new anchor.BN(p.totalContributed),
+          timeBankRemaining: new anchor.BN(p.timeBankRemaining),
+          lastHand: new anchor.BN(p.lastHand),
+          joinedAt: new anchor.BN(p.joinedAt),
         }));
         setPlayers(hydrated);
         playersRef.current = hydrated;
-        console.log('[useTableRealtime] Loaded players from cache');
+        console.log('[useTableRealtime] Loaded players from cache (hydrated)');
       }
     } catch (e) {
       console.warn('Failed to load player cache', e);
@@ -149,7 +165,7 @@ export function useTableRealtime(tableId: string | null) {
         });
 
         if (mountedRef.current) {
-          const expectedSize = 230; // Disc(8) + bytes(222)
+          const expectedSize = 240; // Disc(8) + actual observed size(232)
           const decodedPlayers: (PlayerData & { publicKey: PublicKey })[] = [];
 
           for (const raw of accounts) {
@@ -194,20 +210,26 @@ export function useTableRealtime(tableId: string | null) {
 
     if (publicKey && isSeated && gameRunning) {
       try {
-        const pda = deriveTablePDA(tid);
+        const tablePda = deriveTablePDA(tid);
+        const handNumBuf = toBufferLE(tableToUse.handNumber, 8);
         const [handPda] = PublicKey.findProgramAddressSync(
           [
             Buffer.from('hand'),
-            pda.toBuffer(),
-            tableToUse.handNumber.toArrayLike(Buffer, 'le', 8),
+            tablePda.toBuffer(),
+            handNumBuf,
             publicKey.toBuffer()
           ],
           POKER_PROGRAM_ID
         );
         const handAcc = await (program.account as any).encryptedHand.fetch(handPda);
-        if (mountedRef.current) setMyHand(handAcc);
-      } catch {
-        // Silently preserve cards or stay empty if not dealt yet
+        if (mountedRef.current) {
+          console.log('[useTableRealtime] Hand loaded:', handAcc);
+          setMyHand(handAcc);
+        }
+      } catch (e: any) {
+        if (!e.message?.includes('Account does not exist')) {
+          console.warn('[useTableRealtime] Hand fetch failed:', e.message);
+        }
       }
     } else if (mountedRef.current) {
       setMyHand(null);

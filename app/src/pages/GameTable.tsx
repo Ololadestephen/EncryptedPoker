@@ -719,6 +719,41 @@ export const GameTablePage: React.FC = () => {
     }
   }, [publicKey, tableId, program, refetch]);
 
+  const handleForceReveal = useCallback(async () => {
+    if (!publicKey || !tableId || !table) return;
+    setIsActing(true);
+    try {
+      const tablePda = deriveTablePDA(tableId);
+      const currentPhaseStr = parseGamePhase(table.phase);
+      let indices: number[] = [];
+      if (currentPhaseStr === 'Flop') indices = [0, 1, 2];
+      else if (currentPhaseStr === 'Turn') indices = [3];
+      else if (currentPhaseStr === 'River') indices = [4];
+
+      if (indices.length === 0) {
+        alert('Nothing to reveal for current phase.');
+        return;
+      }
+
+      // Generate random card values for the demo/stuck state
+      const values = indices.map(() => Math.floor(Math.random() * 52));
+
+      await (program.methods as any).onCommunityCards(indices, values)
+        .accounts({
+          table: tablePda,
+          arciumMxe: ARCIUM_MXE_PUBKEY,
+        })
+        .rpc();
+      console.log('[GameTable] Debug Reveal sent');
+      refetch();
+    } catch (err) {
+      console.error('[GameTable] Reveal failed:', err);
+      alert(parseTxError(err));
+    } finally {
+      setIsActing(false);
+    }
+  }, [publicKey, tableId, table, program, refetch]);
+
   const handleTriggerShowdown = useCallback(async () => {
     if (!publicKey || !tableId) return;
     setIsActing(true);
@@ -1281,14 +1316,24 @@ export const GameTablePage: React.FC = () => {
 
           {/* Creator Controls (Deal button) */}
           {table && publicKey && table.creator.toBase58() === publicKey.toBase58() && (['PreFlop', 'Flop', 'Turn', 'River'].includes(phase)) && (
-            <button
-              onClick={handleDealCommunityCards}
-              disabled={isActing}
-              className="btn btn-gold"
-              style={{ width: '100%', padding: '1rem', fontSize: '1rem', gap: '0.75rem' }}
-            >
-              {isActing ? <div className="spinner-sm" /> : '🎴'} DEAL NEXT STREET
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                onClick={handleDealCommunityCards}
+                disabled={isActing}
+                className="btn btn-gold"
+                style={{ width: '100%', padding: '0.75rem', fontSize: '0.9rem', gap: '0.5rem' }}
+              >
+                {isActing ? <div className="spinner-sm" /> : '🎴'} ADVANCE PHASE
+              </button>
+              <button
+                onClick={handleForceReveal}
+                disabled={isActing}
+                className="btn btn-ghost"
+                style={{ width: '100%', border: '1px solid var(--arcium)', color: 'var(--arcium)' }}
+              >
+                👁️ FORCE REVEAL BOARD
+              </button>
+            </div>
           )}
 
           <div style={{ flex: 1, minHeight: 0 }}>
