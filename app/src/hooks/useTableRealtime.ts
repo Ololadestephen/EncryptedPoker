@@ -211,13 +211,17 @@ export function useTableRealtime(tableId: string | null) {
     if (publicKey && isSeated && gameRunning) {
       try {
         const tablePda = deriveTablePDA(tid);
-        const handNumBuf = toBufferLE(tableToUse.handNumber, 8);
+        const [playerPda] = PublicKey.findProgramAddressSync(
+          [Buffer.from('player'), tablePda.toBuffer(), publicKey.toBuffer()],
+          POKER_PROGRAM_ID
+        );
+        const hNum = tableToUse.handNumber;
         const [handPda] = PublicKey.findProgramAddressSync(
           [
             Buffer.from('hand'),
             tablePda.toBuffer(),
-            handNumBuf,
-            publicKey.toBuffer()
+            hNum.toArrayLike(Buffer, 'le', 8),
+            playerPda.toBuffer()
           ],
           POKER_PROGRAM_ID
         );

@@ -147,12 +147,16 @@ export const HandResultPage: React.FC = () => {
 
         // Fetch my hand if logged in
         if (publicKey) {
+          const [playerPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from('player'), tablePda.toBuffer(), publicKey.toBuffer()],
+            POKER_PROGRAM_ID
+          );
           const [handPda] = PublicKey.findProgramAddressSync(
             [
               Buffer.from('hand'),
               tablePda.toBuffer(),
               hNum.toArrayLike(Buffer, 'le', 8),
-              publicKey.toBuffer()
+              playerPda.toBuffer()
             ],
             POKER_PROGRAM_ID
           );
