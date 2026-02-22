@@ -247,7 +247,12 @@
               },
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "table.hand_number",
+                "account": "Table"
+              },
+              {
+                "kind": "account",
+                "path": "player"
               }
             ]
           }
@@ -342,7 +347,12 @@
               },
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "table.hand_number",
+                "account": "Table"
+              },
+              {
+                "kind": "account",
+                "path": "player"
               }
             ]
           }
@@ -414,7 +424,12 @@
               },
               {
                 "kind": "account",
-                "path": "payer"
+                "path": "table.hand_number",
+                "account": "Table"
+              },
+              {
+                "kind": "account",
+                "path": "player"
               }
             ]
           }
@@ -1612,6 +1627,14 @@
           {
             "name": "last_message_ts",
             "type": "i64"
+          },
+          {
+            "name": "action_count",
+            "type": "u8"
+          },
+          {
+            "name": "last_hand",
+            "type": "u64"
           },
           {
             "name": "bump",
