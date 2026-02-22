@@ -81,7 +81,7 @@ cargo install arcium-cli
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourusername/encrypted-poker
+git clone https://github.com/Ololadestephen/EncryptedPoker.git
 cd encrypted-poker
 cd app && npm install && cd ..
 ```
@@ -189,4 +189,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*Built with ❤️ for the Arcium Gaming Hackathon — ENcryptedPoker: the only poker where the house literally cannot cheat.*
+*Built with ❤️ for the Arcium | ENcryptedPoker: the only poker where the house literally cannot cheat.*
