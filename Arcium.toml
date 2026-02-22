@@ -1,0 +1,69 @@
+[arcium]
+version = "0.1.0"
+network = "devnet"
+
+[mxe]
+pubkey = "H8MGCGH5psG6dss4nZkJWazWEbRzvJG7Kbd2MAzK9n4x"
+threshold = 3
+node_count = 4
+
+[encrypted-ixs]
+# Circuit definitions for the encrypted poker game
+[[encrypted-ixs.entries]]
+name = "create_encrypted_deck"
+source = "encrypted-ixs/src/lib.rs"
+function = "create_encrypted_deck"
+
+[[encrypted-ixs.entries]]
+name = "deal_hole_cards"
+source = "encrypted-ixs/src/lib.rs"
+function = "deal_hole_cards"
+
+[[encrypted-ixs.entries]]
+name = "deal_flop"
+source = "encrypted-ixs/src/lib.rs"
+function = "deal_flop"
+
+[[encrypted-ixs.entries]]
+name = "deal_turn"
+source = "encrypted-ixs/src/lib.rs"
+function = "deal_turn"
+
+[[encrypted-ixs.entries]]
+name = "deal_river"
+source = "encrypted-ixs/src/lib.rs"
+function = "deal_river"
+
+[[encrypted-ixs.entries]]
+name = "evaluate_hand"
+source = "encrypted-ixs/src/lib.rs"
+function = "evaluate_hand"
+
+[[encrypted-ixs.entries]]
+name = "determine_winner"
+source = "encrypted-ixs/src/lib.rs"
+function = "determine_winner"
+
+[[encrypted-ixs.entries]]
+name = "execute_showdown"
+source = "encrypted-ixs/src/lib.rs"
+function = "execute_showdown"
+
+[[encrypted-ixs.entries]]
+name = "prove_hand"
+source = "encrypted-ixs/src/lib.rs"
+function = "prove_hand"
+
+[[encrypted-ixs.entries]]
+name = "process_action"
+source = "encrypted-ixs/src/lib.rs"
+function = "process_action"
+
+[compilation]
+output_dir = "target/arcis"
+
+[localnet]
+nodes = 2
+localnet_timeout_secs = 60
+backends = ["Cerberus"]
+bind_address = "127.0.0.1"

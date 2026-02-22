@@ -1,0 +1,33 @@
+[package]
+name = "encrypted-poker"
+version = "0.1.0"
+description = "Encrypted Texas Hold'em on Solana using Arcium MPC"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "encrypted_poker"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "arcium-anchor/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.32.1", features = ["token"] }
+arcium-client = { version = "0.8.0", default-features = false }
+arcium-macros = "0.8.0"
+arcium-anchor = "0.8.0"
+
+[dev-dependencies]
+anchor-client = "0.32.1"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+opt-level = 3
+codegen-units = 1
