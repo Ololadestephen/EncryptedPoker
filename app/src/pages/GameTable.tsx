@@ -609,13 +609,13 @@ export const GameTablePage: React.FC = () => {
         POKER_PROGRAM_ID
       );
 
-      // Note: player_token_account is optional (no token gate on this table)
-      // Omit it entirely — Anchor resolves Option<Account> as absent when not provided
       await (program.methods as any).joinTable(seatIndex)
         .accounts({
           table: tablePda,
           player: playerPda,
           payer: publicKey,
+          playerTokenAccount: null,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .rpc();
