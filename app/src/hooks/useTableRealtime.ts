@@ -139,7 +139,7 @@ export function useTableRealtime(tableId: string | null) {
         // Defensive: Use getProgramAccounts instead of .all() to handle decoding errors per-account
         const accounts = await connection.getProgramAccounts(program.programId, {
           filters: [
-            { memcmp: { offset: 0, bytes: anchor.utils.bytes.bs58.encode(program.coder.accounts.memcmp('Player').bytes) } },
+            { memcmp: { offset: 0, bytes: anchor.utils.bytes.bs58.encode(program.coder.accounts.memcmp('player').bytes) } },
             { memcmp: { offset: 41, bytes: pda.toBase58() } }
           ]
         });
@@ -153,7 +153,7 @@ export function useTableRealtime(tableId: string | null) {
               if (raw.account.data.length < expectedSize) {
                 console.warn(`[useTableRealtime] Player ${raw.pubkey.toBase58()} size mismatch: expected >=${expectedSize}, got ${raw.account.data.length}. (Possibly stale program on-chain?)`);
               }
-              const decoded = program.coder.accounts.decode('Player', raw.account.data);
+              const decoded = program.coder.accounts.decode('player', raw.account.data);
               decodedPlayers.push({ ...decoded, publicKey: raw.pubkey });
             } catch (e: any) {
               console.warn(`[useTableRealtime] Failed to decode player ${raw.pubkey.toBase58()}:`, e.message);
