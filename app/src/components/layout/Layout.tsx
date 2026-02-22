@@ -74,12 +74,17 @@ export const Layout: React.FC<LayoutProps> = ({
   const { publicKey } = useWallet();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handler);
     return () => window.removeEventListener('scroll', handler);
   }, []);
+
+  // Close menu on route change
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
   const navLinks = [
     { to: '/', label: 'Tables' },
@@ -98,24 +103,20 @@ export const Layout: React.FC<LayoutProps> = ({
         height: 60,
         display: 'flex',
         alignItems: 'center',
-        padding: '0 1.5rem',
-        gap: '1.5rem',
-        background: scrolled
-          ? 'rgba(10,12,15,0.92)'
-          : 'transparent',
-        backdropFilter: scrolled ? 'blur(16px)' : 'none',
-        borderBottom: scrolled
-          ? '1px solid rgba(255,255,255,0.06)'
-          : '1px solid transparent',
+        padding: '0 1rem',
+        gap: '1rem',
+        background: scrolled ? 'rgba(10,12,15,0.92)' : 'rgba(10,12,15,0.7)',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
         transition: 'all 0.3s var(--ease-out)',
       }}>
         {/* Logo */}
-        <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.625rem', flexShrink: 0 }}>
+        <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
           <span style={{ fontSize: '1.375rem' }}>🂱</span>
           <span style={{
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
-            fontSize: '1.0625rem',
+            fontSize: '1rem',
             color: '#fff',
             letterSpacing: '-0.01em',
           }}>
@@ -123,8 +124,8 @@ export const Layout: React.FC<LayoutProps> = ({
           </span>
         </Link>
 
-        {/* Nav links */}
-        <div style={{ display: 'flex', gap: '0.25rem', flex: 1 }}>
+        {/* Desktop nav links */}
+        <div style={{ display: isMobile ? 'none' : 'flex', gap: '0.25rem', flex: 1 }}>
           {navLinks.map(({ to, label }) => {
             const active = location.pathname === to || location.pathname.startsWith(to + '/');
             return (
@@ -141,12 +142,6 @@ export const Layout: React.FC<LayoutProps> = ({
                   background: active ? 'rgba(255,255,255,0.07)' : 'transparent',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => {
-                  if (!active) (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
-                }}
-                onMouseLeave={e => {
-                  if (!active) (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.5)';
-                }}
               >
                 {label}
               </Link>
@@ -155,24 +150,73 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
 
         {/* Right side */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-          <ArciumStatus status={arciumStatus} nodeCount={nodeCount} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+          {/* Hide Arcium status on small mobile */}
+          <div style={{ display: isMobile ? 'none' : 'flex' }}>
+            <ArciumStatus status={arciumStatus} nodeCount={nodeCount} />
+          </div>
           <WalletMultiButton
             style={{
               background: 'linear-gradient(135deg, var(--gold), var(--gold-2))',
               color: '#0a0c0f',
               fontFamily: 'var(--font-body)',
               fontWeight: 600,
-              fontSize: '0.8125rem',
-              padding: '0.4rem 0.875rem',
+              fontSize: isMobile ? '0.75rem' : '0.8125rem',
+              padding: isMobile ? '0.35rem 0.625rem' : '0.4rem 0.875rem',
               borderRadius: 6,
               height: 34,
               border: 'none',
               letterSpacing: '0.01em',
             }}
           />
+          {/* Hamburger for mobile */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            style={{
+              display: isMobile ? 'flex' : 'none',
+              flexDirection: 'column', gap: 5, padding: '0.5rem',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+            }}
+            aria-label="Menu"
+          >
+            <span style={{ width: 22, height: 2, background: 'rgba(255,255,255,0.7)', borderRadius: 2, display: 'block', transition: 'all 0.2s', transform: menuOpen ? 'rotate(45deg) translateY(7px)' : 'none' }} />
+            <span style={{ width: 22, height: 2, background: 'rgba(255,255,255,0.7)', borderRadius: 2, display: 'block', opacity: menuOpen ? 0 : 1, transition: 'all 0.2s' }} />
+            <span style={{ width: 22, height: 2, background: 'rgba(255,255,255,0.7)', borderRadius: 2, display: 'block', transition: 'all 0.2s', transform: menuOpen ? 'rotate(-45deg) translateY(-7px)' : 'none' }} />
+          </button>
         </div>
       </nav>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div style={{
+          position: 'fixed', top: 60, left: 0, right: 0,
+          background: 'rgba(10,12,15,0.97)', backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid var(--border)', zIndex: 99,
+          display: 'flex', flexDirection: 'column', padding: '0.5rem',
+        }}>
+          {navLinks.map(({ to, label }) => {
+            const active = location.pathname === to;
+            return (
+              <Link
+                key={to}
+                to={to}
+                style={{
+                  padding: '0.875rem 1rem', textDecoration: 'none',
+                  fontSize: '1rem', fontWeight: 500,
+                  color: active ? 'var(--gold)' : 'rgba(255,255,255,0.75)',
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  borderRadius: 6,
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
+          <div style={{ padding: '0.75rem 1rem' }}>
+            <ArciumStatus status={arciumStatus} nodeCount={nodeCount} />
+          </div>
+        </div>
+      )}
 
       {/* Page content */}
       <main style={{ flex: 1 }}>
@@ -182,13 +226,14 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Footer */}
       <footer style={{
         borderTop: '1px solid var(--border)',
-        padding: '1.25rem 1.5rem',
+        padding: '1rem 1.5rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         fontSize: '0.75rem',
         color: 'rgba(255,255,255,0.28)',
         gap: '1rem',
+        flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span>🂱</span>
@@ -196,15 +241,13 @@ export const Layout: React.FC<LayoutProps> = ({
           <span>·</span>
           <span>Solana Devnet</span>
         </div>
-        <div style={{ display: 'flex', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <span>Built on <span style={{ color: 'var(--arcium)' }}>Arcium MPC</span></span>
           <a
-            href="https://github.com/arcium-hq/examples"
+            href="https://github.com/Ololadestephen/EncryptedPoker"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'rgba(255,255,255,0.28)', textDecoration: 'none' }}
-            onMouseEnter={e => (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)'}
-            onMouseLeave={e => (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.28)'}
           >
             GitHub
           </a>

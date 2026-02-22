@@ -288,7 +288,7 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
       )}
 
       {/* Dealer button */}
-      {table && seatIndex === table.dealer && (
+      {table && seatIndex === table.dealerSeat && (
         <div style={{
           position: 'absolute', top: -10, left: -10,
           width: 22, height: 22, borderRadius: '50%',
@@ -840,6 +840,239 @@ export const GameTablePage: React.FC = () => {
     );
   }
 
+  const isMobile = windowWidth <= 768;
+
+  // Mobile-optimized seat positions (portrait oval)
+  const MOBILE_SEAT_POSITIONS = [
+    { bottom: '6rem', left: '50%', transform: 'translateX(-50%)' },     // 0 hero bottom
+    { bottom: '20%', right: '0.5rem' },                                   // 1 bottom-right
+    { top: '30%', right: '0.5rem', transform: 'translateY(-50%)' },     // 2 mid-right
+    { top: '10%', right: '3rem' },                                        // 3 top-right
+    { top: '6%', left: '50%', transform: 'translateX(-50%)' },          // 4 top-center
+    { bottom: '20%', left: '0.5rem' },                                    // 5 bottom-left
+  ];
+
+  const tableName = table ? (bytesToString(table.name) || `Table #${tableId?.slice(-6) ?? ''}`) : `Table ${tableId?.slice(-6) ?? ''}`;
+
+  if (isMobile) {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', overflow: 'hidden',
+        background: 'linear-gradient(180deg, #0a1628 0%, #0a0c0f 100%)',
+        display: 'flex', flexDirection: 'column', position: 'relative',
+      }}>
+        {/* Mobile mini top bar */}
+        <div style={{
+          height: 48, display: 'flex', alignItems: 'center',
+          padding: '0 0.75rem', gap: '0.5rem', zIndex: 200,
+          background: 'rgba(10,12,15,0.7)', backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={() => navigate('/')}
+            style={{
+              background: 'transparent', border: 'none',
+              color: 'rgba(255,255,255,0.6)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.25rem',
+            }}
+          >←</button>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.9rem', color: 'var(--gold)', flex: 1 }}>
+            {tableName}
+          </span>
+          <span className="badge badge-gold" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>
+            {table ? table.smallBlind.toNumber() : 25}/{table ? table.bigBlind.toNumber() : 50}
+          </span>
+          <span className={`badge ${phase === 'Waiting' ? 'badge-green' : 'badge-arcium'}`} style={{ fontSize: '0.65rem' }}>
+            {phaseLabel(phase)}
+          </span>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: connectionMode === 'ws' ? 'var(--arcium)' : 'var(--amber)',
+          }} />
+        </div>
+
+        {/* Portrait poker table — fills all available space */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {/* Outer rail */}
+          <div style={{
+            position: 'absolute',
+            top: '3%', left: '4%', right: '4%', bottom: '2%',
+            background: '#2d1a0a',
+            borderRadius: '50%',
+            boxShadow: 'inset 0 0 60px rgba(0,0,0,0.8), 0 20px 60px rgba(0,0,0,0.7)',
+            border: '6px solid #4a2c12',
+          }} />
+          {/* Felt inner */}
+          <div style={{
+            position: 'absolute',
+            top: 'calc(3% + 14px)', left: 'calc(4% + 14px)',
+            right: 'calc(4% + 14px)', bottom: 'calc(2% + 14px)',
+            background: 'radial-gradient(ellipse at center, #0f4535 0%, #0a2e21 70%)',
+            borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexDirection: 'column', gap: '0.5rem',
+          }}>
+            {/* Logo watermark */}
+            <div style={{
+              fontFamily: 'var(--font-display)', fontSize: '0.75rem',
+              color: 'rgba(255,255,255,0.06)', letterSpacing: '0.15em', userSelect: 'none',
+            }}>ENcryptedPoker</div>
+
+            {/* Community cards */}
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              {communityCards.map((val, i) => {
+                const flopped = phase === 'Flop' ? i < 3 : phase === 'Turn' ? i < 4 : phase === 'River' || phase === 'Complete' || phase === 'Showdown';
+                return <PlayingCard key={i} value={flopped ? val : -1} size="sm" />;
+              })}
+            </div>
+
+            {/* Pot */}
+            {table && table.pot.toNumber() > 0 && (
+              <div style={{
+                background: 'rgba(10,12,15,0.5)', padding: '4px 16px', borderRadius: 100,
+                border: '1px solid var(--border-bright)', backdropFilter: 'blur(8px)',
+                color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontSize: '0.875rem',
+                display: 'flex', alignItems: 'center', gap: '0.4rem',
+              }}>
+                <span style={{ opacity: 0.5, fontSize: '0.7rem' }}>POT</span>
+                <span style={{ fontWeight: 700 }}>{formatChips(table.pot)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Players positioned around the oval */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const p = players.find(pl => pl.seatIndex === i) ?? null;
+            const isMeLocal = p?.wallet.toBase58() === publicKey?.toBase58();
+            const pos = MOBILE_SEAT_POSITIONS[i];
+            if (!p) {
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleJoin(i)}
+                  style={{
+                    position: 'absolute', ...pos as any,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px dashed rgba(255,255,255,0.15)',
+                    borderRadius: 8, padding: '0.3rem 0.5rem',
+                    color: 'rgba(255,255,255,0.3)', fontSize: '0.65rem',
+                    cursor: 'pointer', zIndex: 10,
+                  }}
+                >
+                  + Seat {i + 1}
+                </button>
+              );
+            }
+            const isThisTurn = p?.playerId === table?.currentTurn;
+            return (
+              <div key={i} style={{ position: 'absolute', ...pos as any, zIndex: isThisTurn ? 20 : 10 }}>
+                {/* Hole cards for hero */}
+                {isMeLocal && p.isActive && myCards?.length === 2 && (
+                  <div style={{ display: 'flex', gap: '0.25rem', marginBottom: 2, justifyContent: 'center' }}>
+                    <PlayingCard value={myCards[0]} size="sm" />
+                    <PlayingCard value={myCards[1]} size="sm" />
+                  </div>
+                )}
+                <div style={{
+                  background: isThisTurn ? 'rgba(0,229,176,0.15)' : 'rgba(10,12,15,0.88)',
+                  border: `1.5px solid ${isThisTurn ? 'rgba(0,229,176,0.5)' : isMeLocal ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                  borderRadius: 8, padding: '0.3rem 0.5rem',
+                  backdropFilter: 'blur(12px)', minWidth: 72, textAlign: 'center',
+                  boxShadow: isThisTurn ? '0 0 20px rgba(0,229,176,0.25)' : 'none',
+                  opacity: !p.isActive ? 0.5 : 1,
+                }}>
+                  <div style={{ fontSize: '0.6rem', color: isMeLocal ? 'var(--gold)' : 'rgba(255,255,255,0.5)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                    {isMeLocal ? 'You' : shortenWallet(p.wallet, 3)}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: p.chipCount.toNumber() < 200 ? 'var(--red)' : '#fff' }}>
+                    {formatChips(p.chipCount)}
+                  </div>
+                  {p.isAllIn && <div style={{ fontSize: '0.55rem', color: 'var(--red)', fontWeight: 700 }}>ALL IN</div>}
+                  {!p.isActive && <div style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.35)' }}>FOLDED</div>}
+                </div>
+                {/* Dealer chip */}
+                {table && i === table.dealerSeat && (
+                  <div style={{
+                    position: 'absolute', top: -8, left: -8,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: 'var(--gold)', color: '#0a0c0f',
+                    fontSize: '0.55rem', fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>D</div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Waiting overlay */}
+          {phase === 'Waiting' && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 100,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <div style={{
+                background: 'var(--surface-2)', padding: '1.5rem 2rem', borderRadius: 16,
+                border: '1px solid var(--border-bright)', textAlign: 'center',
+              }}>
+                <div style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Waiting Room</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>{table?.currentPlayers ?? 0}/{table?.maxPlayers ?? 6} players</div>
+                {publicKey && table?.creator.equals(publicKey) && (table?.currentPlayers ?? 0) >= (table?.minPlayers ?? 2) && (
+                  <button className="btn btn-gold" style={{ marginTop: '1rem', width: '100%' }} onClick={handleStart} disabled={isActing}>
+                    Start Game
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Dealing overlay */}
+          {isDealing && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 150,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(10,12,15,0.5)', backdropFilter: 'blur(4px)',
+            }}>
+              <div className="badge badge-arcium" style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', gap: '0.75rem' }}>
+                <div className="spinner-sm" /> Dealing...
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile action bar — pinned to bottom */}
+        <div style={{
+          flexShrink: 0, zIndex: 200,
+          background: 'rgba(10,12,15,0.95)', borderTop: '1px solid var(--border-bright)',
+          backdropFilter: 'blur(16px)',
+        }}>
+          {isMyTurn && myPlayer && table ? (
+            <div style={{ padding: '0.625rem' }}>
+              <BetControls table={table} myPlayer={myPlayer} onAction={handleAction} isLoading={isActing} />
+            </div>
+          ) : (
+            <div style={{
+              padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+                Hand #{table ? table.handNumber.toNumber() : 0}
+              </span>
+              {myPlayer && (
+                <span style={{ fontSize: '0.875rem', fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 700 }}>
+                  {formatChips(myPlayer.chipCount)}
+                </span>
+              )}
+              <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>
+                {isMyTurn ? '⚡ YOUR TURN' : phase === 'Waiting' ? 'Waiting...' : 'Watching...'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===== DESKTOP LAYOUT =====
   return (
     <Layout arciumStatus="active">
       {/* Top bar */}
@@ -852,7 +1085,7 @@ export const GameTablePage: React.FC = () => {
       }}>
         <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}>← Lobby</button>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gold)' }}>
-          {table ? (bytesToString(table.name) || `Table #${tableId?.slice(-6) ?? ''}`) : `Table ${tableId?.slice(-6) ?? ''}`}
+          {tableName}
         </div>
         <div style={{ display: 'flex', gap: '0.625rem' }}>
           <span className="badge badge-gold" style={{ fontFamily: 'var(--font-mono)' }}>
@@ -895,7 +1128,6 @@ export const GameTablePage: React.FC = () => {
                 aspectRatio: '16/9', transform: `scale(${tableScale})`,
                 transformOrigin: 'center center',
               }}>
-                {/* Table felt and rails... (Simplified for brevity in the middle) */}
                 <div style={{
                   position: 'absolute', inset: 0,
                   background: 'var(--felt-rail)', borderRadius: 200,
@@ -951,7 +1183,7 @@ export const GameTablePage: React.FC = () => {
                   })}
                 </div>
 
-                {/* Overlays (Waiting, Shuffling, Dealing) */}
+                {/* Overlays */}
                 {phase === 'Waiting' && (
                   <div style={{
                     position: 'absolute', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -997,7 +1229,6 @@ export const GameTablePage: React.FC = () => {
 
         {/* Right: Sidebar (Log and Chat) */}
         <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Active Player Status Badge */}
           {myPlayer && (
             <div style={{
               background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -1013,7 +1244,6 @@ export const GameTablePage: React.FC = () => {
             </div>
           )}
 
-          {/* Chat Window */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <ChatWindow
               messages={chatMessages}
