@@ -189,4 +189,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*Built with ❤️ for the Arcium | ENcryptedPoker: the only poker where the house literally cannot cheat.*
+*Built with ❤️ for Arcium | ENcryptedPoker: the only poker where the house literally cannot cheat.*
