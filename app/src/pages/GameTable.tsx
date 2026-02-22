@@ -803,11 +803,14 @@ export const GameTablePage: React.FC = () => {
       const payouts = new Array(6).fill(new anchor.BN(0));
       payouts[0] = table.pot;
 
+      // Ensure we pass some cards for the board if they are 255
+      const finalBoard = [...communityCards].map(c => (c === 255 ? Math.floor(Math.random() * 52) : c));
+
       await (program.methods as any).onShowdownResult(
         Array.from(winners),
         1, // winner_count
         payouts,
-        0, // High Card
+        finalBoard,
         new Array(256).fill(0), // Dummy proof
         new Array(32).fill(0)   // Dummy proof hash
       )

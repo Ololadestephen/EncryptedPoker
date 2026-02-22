@@ -547,6 +547,17 @@
           "type": "u8"
         },
         {
+          "name": "final_community_cards",
+          "type": {
+            "option": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          }
+        },
+        {
           "name": "arcium_proof",
           "type": {
             "array": [

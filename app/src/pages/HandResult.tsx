@@ -122,6 +122,7 @@ export const HandResultPage: React.FC = () => {
   const { publicKey } = useWallet();
 
   const [result, setResult] = useState<GameResultData | null>(null);
+  const [myHandCards, setMyHandCards] = useState<number[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const program = useMemo(() => {
@@ -130,23 +131,53 @@ export const HandResultPage: React.FC = () => {
   }, [connection]);
 
   useEffect(() => {
-    async function fetchResult() {
-      if (!tableId || !handNumber) return;
+    async function fetchData() {
+      if (!tableId || !handNumber || !program) return;
       try {
         const tablePda = deriveTablePDA(tableId);
+        const hNum = new anchor.BN(handNumber);
+
+        // Fetch result
         const [resultPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('result'), tablePda.toBuffer(), new anchor.BN(handNumber).toArrayLike(Buffer, 'le', 8)],
+          [Buffer.from('result'), tablePda.toBuffer(), hNum.toArrayLike(Buffer, 'le', 8)],
           POKER_PROGRAM_ID
         );
         const acc = await (program.account as any).gameResult.fetch(resultPda);
         setResult(acc);
+
+        // Fetch my hand if logged in
+        if (publicKey) {
+          const [handPda] = PublicKey.findProgramAddressSync(
+            [
+              Buffer.from('hand'),
+              tablePda.toBuffer(),
+              hNum.toArrayLike(Buffer, 'le', 8),
+              publicKey.toBuffer()
+            ],
+            POKER_PROGRAM_ID
+          );
+          try {
+            const handAcc = await (program.account as any).encryptedHand.fetch(handPda);
+            // In a real Arcium app, these would be decrypted.
+            // For now, we show the card1/2 if they are plaintext (for demo/fallback)
+            // or we'd needing a decryption step.
+            // If they are [0...0] they are still encrypted.
+            // However, our on_cards_dealt stores them.
+            // For this project's current state, we'll try to display them.
+            if (handAcc.encryptedCard1[0] !== 0 || handAcc.encryptedCard1[1] !== 0) {
+              setMyHandCards([handAcc.encryptedCard1[0], handAcc.encryptedCard2[0]]);
+            }
+          } catch (e) {
+            console.log('[HandResult] No hand found for player');
+          }
+        }
       } catch (err) {
         console.error('[HandResult] Error fetching result:', err);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchResult();
+    fetchData();
   }, [tableId, handNumber, program]);
 
   if (isLoading) {
@@ -229,15 +260,34 @@ export const HandResultPage: React.FC = () => {
           backdropFilter: 'blur(10px)',
           boxShadow: 'inset 0 0 20px rgba(255,255,255,0.02)',
         }}>
-          <div style={{
-            fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)',
-            marginBottom: '1rem', fontFamily: 'var(--font-mono)',
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            display: 'flex', alignItems: 'center', gap: '0.5rem'
-          }}>
-            Board Cards <span style={{ opacity: 0.3 }}>——</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{
+              fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)',
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}>
+              Board Cards
+            </div>
+            {myHandCards && (
+              <div style={{
+                fontSize: '0.75rem', color: 'var(--gold)',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>
+                Your Hole Cards
+              </div>
+            )}
           </div>
-          <CardRow cards={result.communityCards || (result as any).community_cards} size="lg" />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <CardRow cards={result.communityCards || (result as any).community_cards} size="lg" />
+            {myHandCards && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <PlayingCard value={myHandCards[0]} size="lg" />
+                <PlayingCard value={myHandCards[1]} size="lg" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="animate-fade-up delay-2" style={{ marginBottom: '1rem' }}>
