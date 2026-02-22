@@ -1029,10 +1029,12 @@ export const GameTablePage: React.FC = () => {
             <div style={{
               position: 'absolute', inset: 0, zIndex: 100,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none',
             }}>
               <div style={{
                 background: 'var(--surface-2)', padding: '1.5rem 2rem', borderRadius: 16,
                 border: '1px solid var(--border-bright)', textAlign: 'center',
+                pointerEvents: 'auto',
               }}>
                 <div style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Waiting Room</div>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>{table?.currentPlayers ?? 0}/{table?.maxPlayers ?? 6} players</div>
@@ -1051,8 +1053,9 @@ export const GameTablePage: React.FC = () => {
               position: 'absolute', inset: 0, zIndex: 150,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(10,12,15,0.5)', backdropFilter: 'blur(4px)',
+              pointerEvents: 'none',
             }}>
-              <div className="badge badge-arcium" style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', gap: '0.75rem' }}>
+              <div className="badge badge-arcium" style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', gap: '0.75rem', pointerEvents: 'auto' }}>
                 <div className="spinner-sm" /> Dealing...
               </div>
             </div>
@@ -1207,11 +1210,13 @@ export const GameTablePage: React.FC = () => {
                 {phase === 'Waiting' && (
                   <div style={{
                     position: 'absolute', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(0,0,0,0.4)', borderRadius: 200, backdropFilter: 'blur(4px)'
+                    background: 'rgba(0,0,0,0.4)', borderRadius: 200, backdropFilter: 'blur(4px)',
+                    pointerEvents: 'none',
                   }}>
                     <div style={{
                       background: 'var(--surface-2)', padding: '2rem 3.5rem', borderRadius: 24,
-                      border: '1px solid var(--border-bright)', boxShadow: 'var(--shadow-xl)', textAlign: 'center'
+                      border: '1px solid var(--border-bright)', boxShadow: 'var(--shadow-xl)', textAlign: 'center',
+                      pointerEvents: 'auto',
                     }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', marginBottom: '0.5rem' }}>Waiting Room</h3>
                       <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.875rem' }}>{table?.currentPlayers ?? 0}/{table?.maxPlayers ?? 6} joined</p>
@@ -1225,9 +1230,10 @@ export const GameTablePage: React.FC = () => {
                 {isDealing && (
                   <div style={{
                     position: 'absolute', inset: 0, zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(10,12,15,0.7)', borderRadius: 200, backdropFilter: 'blur(8px)'
+                    background: 'rgba(10,12,15,0.7)', borderRadius: 200, backdropFilter: 'blur(8px)',
+                    pointerEvents: 'none',
                   }}>
-                    <div className="badge badge-arcium" style={{ padding: '0.875rem 1.75rem', fontSize: '1.2rem', gap: '1rem' }}>
+                    <div className="badge badge-arcium" style={{ padding: '0.875rem 1.75rem', fontSize: '1.2rem', gap: '1rem', pointerEvents: 'auto' }}>
                       <div className="spinner-sm" /> Arcium is Dealing...
                     </div>
                   </div>
