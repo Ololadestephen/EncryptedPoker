@@ -24,24 +24,24 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   style,
 }) => {
   const dim = SIZES[size];
-  const hidden = value === 255 || value < 0 || value === undefined;
+  const hidden = value === 255 || value < 0 || value === undefined || value === -1;
   const card = hidden ? null : cardToDisplay(Math.min(value, 51));
 
   const baseStyle: React.CSSProperties = {
     width: dim.width,
     height: dim.height,
-    borderRadius: 6,
+    borderRadius: 8,
     border: highlight
-      ? '1px solid var(--gold)'
-      : '1px solid rgba(255,255,255,0.12)',
+      ? '2px solid var(--gold)'
+      : '1px solid rgba(255,255,255,0.08)',
     boxShadow: highlight
-      ? 'var(--shadow-gold), var(--shadow-sm)'
-      : 'var(--shadow-sm)',
+      ? '0 0 20px rgba(201,168,76,0.4), var(--shadow-lg)'
+      : 'var(--shadow-md)',
     position: 'relative',
     overflow: 'hidden',
     flexShrink: 0,
-    transition: 'transform 0.15s var(--ease-out), box-shadow 0.15s',
-    animation: animate ? 'card-flip 0.4s var(--ease-out)' : 'none',
+    transition: 'all 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
+    animation: animate ? 'card-reveal 0.6s cubic-bezier(0.23, 1, 0.32, 1)' : 'none',
     ...style,
   };
 
@@ -49,24 +49,33 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
     return (
       <div style={{
         ...baseStyle,
-        background: 'linear-gradient(160deg, #1e3a8a 0%, #1e40af 40%, #172554 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        {/* Card back pattern */}
+        {/* Intricate card back pattern */}
         <div style={{
           position: 'absolute',
           inset: 4,
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 3,
-          background: `repeating-linear-gradient(
-            45deg,
-            transparent, transparent 3px,
-            rgba(255,255,255,0.03) 3px, rgba(255,255,255,0.03) 6px
-          )`,
+          border: '1px solid rgba(201,168,76,0.15)',
+          borderRadius: 6,
+          background: `
+            radial-gradient(circle at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%),
+            repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.02) 4px, rgba(255,255,255,0.02) 8px),
+            repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.02) 4px, rgba(255,255,255,0.02) 8px)
+          `,
         }} />
-        <span style={{ fontSize: '1.25rem', position: 'relative', zIndex: 1, opacity: 0.4 }}>🔒</span>
+        <div style={{
+          width: '60%', height: '60%',
+          borderRadius: '50%',
+          border: '1px solid rgba(201,168,76,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.2)',
+          zIndex: 1,
+        }}>
+          <span style={{ fontSize: '1.25rem', opacity: 0.6, filter: 'grayscale(1) brightness(1.5)' }}>⚜️</span>
+        </div>
       </div>
     );
   }
@@ -74,25 +83,29 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   return (
     <div style={{
       ...baseStyle,
-      background: '#fafaf8',
+      background: 'linear-gradient(to bottom, #ffffff 0%, #f1f5f9 100%)',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      padding: '0.2rem 0.25rem',
-      color: card!.isRed ? '#dc2626' : '#111',
+      padding: '0.35rem 0.4rem',
+      color: card!.isRed ? '#e11d48' : '#0f172a',
     }}>
       {/* Top-left rank + suit */}
-      <div style={{ fontSize: dim.fontSize, fontWeight: 700, lineHeight: 1, fontFamily: 'var(--font-mono)' }}>
+      <div style={{ fontSize: dim.fontSize, fontWeight: 800, lineHeight: 1, fontFamily: 'var(--font-mono)' }}>
         <div>{card!.rank}</div>
-        <div style={{ fontSize: '0.65rem' }}>{card!.suit}</div>
+        <div style={{ fontSize: '0.8em', marginTop: '1px' }}>{card!.suit}</div>
       </div>
 
-      {/* Center suit */}
+      {/* Center suit - larger and slightly transparent */}
       <div style={{
         fontSize: dim.suitSize,
         textAlign: 'center',
         lineHeight: 1,
-        opacity: 0.85,
+        opacity: 0.15,
+        position: 'absolute',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none',
       }}>
         {card!.suit}
       </div>
@@ -100,25 +113,24 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       {/* Bottom-right rank + suit (rotated) */}
       <div style={{
         fontSize: dim.fontSize,
-        fontWeight: 700,
+        fontWeight: 800,
         lineHeight: 1,
         transform: 'rotate(180deg)',
         fontFamily: 'var(--font-mono)',
         alignSelf: 'flex-end',
       }}>
         <div>{card!.rank}</div>
-        <div style={{ fontSize: '0.65rem' }}>{card!.suit}</div>
+        <div style={{ fontSize: '0.8em', marginTop: '1px' }}>{card!.suit}</div>
       </div>
 
-      {/* Highlight shimmer overlay */}
-      {highlight && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(135deg, rgba(201,168,76,0.08) 0%, transparent 60%)',
-          pointerEvents: 'none',
-        }} />
-      )}
+      {/* Gloss reflection overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, height: '50%',
+        background: 'linear-gradient(to bottom, rgba(255,255,255,0.4) 0%, transparent 100%)',
+        pointerEvents: 'none',
+        opacity: 0.5,
+      }} />
     </div>
   );
 };

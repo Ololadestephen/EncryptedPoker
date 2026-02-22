@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Layout } from '../components/layout/Layout';
-import { PlayingCard } from '../components/ui/PlayingCard';
+import { PlayingCard, CardRow } from '../components/ui/PlayingCard';
 import { useTableRealtime, useTurnTimer, deriveTablePDA } from '../hooks/useTableRealtime';
 import { PlayerData, formatChips, shortenWallet, phaseLabel, HAND_NAMES, parseGamePhase, bytesToString } from '../types';
 import * as anchor from '@coral-xyz/anchor';
@@ -137,17 +137,18 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
 
       {/* Hole cards above seat */}
       {player.isActive && (
-        <div style={{ display: 'flex', gap: '0.25rem' }}>
+        <div style={{
+          display: 'flex',
+          gap: '0.2rem',
+          marginBottom: '0.2rem',
+          transform: 'translateY(10px)',
+          opacity: folded ? 0.4 : 1,
+          transition: 'all 0.3s var(--ease-out)',
+        }}>
           {isMe && myCards?.length === 2 ? (
-            <>
-              <PlayingCard value={myCards[0]} size="sm" />
-              <PlayingCard value={myCards[1]} size="sm" />
-            </>
+            <CardRow cards={myCards} size="sm" />
           ) : (
-            <>
-              <PlayingCard value={255} size="sm" />
-              <PlayingCard value={255} size="sm" />
-            </>
+            <CardRow cards={[255, 255]} size="sm" />
           )}
         </div>
       )}
@@ -1304,11 +1305,17 @@ export const GameTablePage: React.FC = () => {
                   overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {/* Community Cards */}
-                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                    {communityCards.map((val: any, i: number) => {
-                      const flopped = (i < 3 && phase !== 'PreFlop') || (i < 4 && phase === 'Turn') || (i < 5 && (phase === 'River' || phase === 'Complete' || phase === 'Showdown'));
-                      return <PlayingCard key={i} value={flopped ? val : -1} size="md" />;
-                    })}
+                  <div style={{ position: 'relative', zIndex: 10 }}>
+                    <CardRow
+                      cards={communityCards.map((val: any, i: number) => {
+                        const revealed = (i < 3 && phase !== 'PreFlop') ||
+                          (i < 4 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
+                          (i < 5 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
+                        return revealed ? val : 255;
+                      })}
+                      size="lg"
+                      gap="0.5rem"
+                    />
                   </div>
 
                   {/* Total Pot */}
