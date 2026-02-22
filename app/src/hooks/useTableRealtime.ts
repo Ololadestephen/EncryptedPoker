@@ -136,10 +136,14 @@ export function useTableRealtime(tableId: string | null) {
     if (shouldFetchPlayers) {
       try {
         const pda = deriveTablePDA(tid);
+        // Robustly get the discriminator for the 'Player' account
+        const playerDisc = Buffer.from([205, 222, 112, 7, 165, 155, 206, 218]);
+        const playerDiscBase58 = anchor.utils.bytes.bs58.encode(playerDisc);
+
         // Defensive: Use getProgramAccounts instead of .all() to handle decoding errors per-account
         const accounts = await connection.getProgramAccounts(program.programId, {
           filters: [
-            { memcmp: { offset: 0, bytes: anchor.utils.bytes.bs58.encode(program.coder.accounts.memcmp('player').bytes) } },
+            { memcmp: { offset: 0, bytes: playerDiscBase58 } },
             { memcmp: { offset: 41, bytes: pda.toBase58() } }
           ]
         });
