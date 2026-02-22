@@ -290,7 +290,12 @@ export const HandResultPage: React.FC = () => {
                   POKER_PROGRAM_ID
                 );
                 const [handPda] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('hand'), tablePda.toBuffer(), publicKey.toBuffer()],
+                  [
+                    Buffer.from('hand'),
+                    tablePda.toBuffer(),
+                    result.handNumber.toArrayLike(Buffer, 'le', 8),
+                    publicKey.toBuffer()
+                  ],
                   POKER_PROGRAM_ID
                 );
 

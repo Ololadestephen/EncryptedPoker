@@ -668,7 +668,8 @@ export const GameTablePage: React.FC = () => {
           Buffer.from('action'),
           tablePda.toBuffer(),
           table.handNumber.toArrayLike(Buffer, 'le', 8),
-          Buffer.from([myPlayer.playerId])
+          Buffer.from([myPlayer.playerId]),
+          Buffer.from([myPlayer.actionCount])
         ],
         POKER_PROGRAM_ID
       );

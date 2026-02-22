@@ -69,6 +69,8 @@ export interface PlayerData {
   lastReactionTs: any; // BN (i64)
   lastMessage: number[]; // [u8; 64]
   lastMessageTs: any; // BN (i64)
+  actionCount: number;
+  lastHand: any; // BN
   bump: number;
 }
 

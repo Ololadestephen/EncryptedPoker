@@ -1,0 +1,1705 @@
+{
+  "accounts": [
+    {
+      "discriminator": [
+        5,
+        188,
+        200,
+        180,
+        254,
+        217,
+        86,
+        236
+      ],
+      "name": "EncryptedAction"
+    },
+    {
+      "discriminator": [
+        172,
+        200,
+        236,
+        150,
+        144,
+        22,
+        161,
+        159
+      ],
+      "name": "EncryptedHand"
+    },
+    {
+      "discriminator": [
+        154,
+        160,
+        133,
+        130,
+        0,
+        179,
+        92,
+        10
+      ],
+      "name": "GameResult"
+    },
+    {
+      "discriminator": [
+        205,
+        222,
+        112,
+        7,
+        165,
+        155,
+        206,
+        218
+      ],
+      "name": "Player"
+    },
+    {
+      "discriminator": [
+        34,
+        100,
+        138,
+        97,
+        236,
+        129,
+        230,
+        112
+      ],
+      "name": "Table"
+    }
+  ],
+  "address": "AxwPZ5ZiuZwrFss1jjFh5zAozYt2EKBZYT9Mw2wN7fye",
+  "errors": [
+    {
+      "code": 6000,
+      "msg": "Invalid blind amount",
+      "name": "InvalidBlind"
+    },
+    {
+      "code": 6001,
+      "msg": "Invalid player count",
+      "name": "InvalidPlayerCount"
+    },
+    {
+      "code": 6002,
+      "msg": "Game already started",
+      "name": "GameAlreadyStarted"
+    },
+    {
+      "code": 6003,
+      "msg": "Table is full",
+      "name": "TableFull"
+    },
+    {
+      "code": 6004,
+      "msg": "Invalid seat index",
+      "name": "InvalidSeat"
+    },
+    {
+      "code": 6005,
+      "msg": "Token gate required to join this table",
+      "name": "TokenGateRequired"
+    },
+    {
+      "code": 6006,
+      "msg": "Wrong token mint",
+      "name": "InvalidTokenMint"
+    },
+    {
+      "code": 6007,
+      "msg": "Insufficient tokens to join",
+      "name": "InsufficientTokens"
+    },
+    {
+      "code": 6008,
+      "msg": "Not enough players to start",
+      "name": "NotEnoughPlayers"
+    },
+    {
+      "code": 6009,
+      "msg": "Player is inactive",
+      "name": "PlayerInactive"
+    },
+    {
+      "code": 6010,
+      "msg": "Not your turn",
+      "name": "NotYourTurn"
+    },
+    {
+      "code": 6011,
+      "msg": "Time bank expired",
+      "name": "TimeExpired"
+    },
+    {
+      "code": 6012,
+      "msg": "Must call or fold",
+      "name": "MustCallOrFold"
+    },
+    {
+      "code": 6013,
+      "msg": "Insufficient chips",
+      "name": "InsufficientChips"
+    },
+    {
+      "code": 6014,
+      "msg": "Raise too small",
+      "name": "RaiseTooSmall"
+    },
+    {
+      "code": 6015,
+      "msg": "Invalid action",
+      "name": "InvalidAction"
+    },
+    {
+      "code": 6016,
+      "msg": "Betting round not complete",
+      "name": "BettingNotComplete"
+    },
+    {
+      "code": 6017,
+      "msg": "Invalid game phase",
+      "name": "InvalidPhase"
+    },
+    {
+      "code": 6018,
+      "msg": "Invalid card index",
+      "name": "InvalidCard"
+    },
+    {
+      "code": 6019,
+      "msg": "Unauthorized callback",
+      "name": "UnauthorizedCallback"
+    },
+    {
+      "code": 6020,
+      "msg": "Invalid Arcium proof",
+      "name": "InvalidProof"
+    },
+    {
+      "code": 6021,
+      "msg": "Invalid game reference",
+      "name": "InvalidGame"
+    }
+  ],
+  "events": [
+    {
+      "discriminator": [
+        237,
+        39,
+        188,
+        148,
+        247,
+        136,
+        58,
+        245
+      ],
+      "name": "ActionSubmitted"
+    },
+    {
+      "discriminator": [
+        5,
+        123,
+        182,
+        153,
+        216,
+        39,
+        173,
+        197
+      ],
+      "name": "BluffRevealed"
+    },
+    {
+      "discriminator": [
+        115,
+        159,
+        224,
+        101,
+        212,
+        252,
+        148,
+        44
+      ],
+      "name": "CardsDealt"
+    },
+    {
+      "discriminator": [
+        206,
+        135,
+        49,
+        92,
+        227,
+        73,
+        173,
+        199
+      ],
+      "name": "CommunityCardsDealt"
+    },
+    {
+      "discriminator": [
+        133,
+        49,
+        172,
+        36,
+        92,
+        56,
+        47,
+        18
+      ],
+      "name": "DeckReady"
+    },
+    {
+      "discriminator": [
+        88,
+        206,
+        17,
+        144,
+        60,
+        96,
+        55,
+        147
+      ],
+      "name": "GameComplete"
+    },
+    {
+      "discriminator": [
+        222,
+        247,
+        78,
+        255,
+        61,
+        184,
+        156,
+        41
+      ],
+      "name": "GameStarted"
+    },
+    {
+      "discriminator": [
+        39,
+        144,
+        49,
+        106,
+        108,
+        210,
+        183,
+        38
+      ],
+      "name": "PlayerJoined"
+    },
+    {
+      "discriminator": [
+        135,
+        42,
+        149,
+        1,
+        120,
+        130,
+        62,
+        187
+      ],
+      "name": "ShowdownTriggered"
+    },
+    {
+      "discriminator": [
+        0,
+        80,
+        254,
+        236,
+        195,
+        204,
+        136,
+        44
+      ],
+      "name": "StreetAdvanced"
+    },
+    {
+      "discriminator": [
+        164,
+        233,
+        12,
+        97,
+        250,
+        213,
+        187,
+        147
+      ],
+      "name": "TableCreated"
+    }
+  ],
+  "instructions": [
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  98,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "table_id"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "creator",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "arcium_mxe"
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "table_id",
+          "type": "u64"
+        },
+        {
+          "name": "name",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "small_blind",
+          "type": "u64"
+        },
+        {
+          "name": "big_blind",
+          "type": "u64"
+        },
+        {
+          "name": "min_players",
+          "type": "u8"
+        },
+        {
+          "name": "max_players",
+          "type": "u8"
+        },
+        {
+          "name": "token_gate_mint",
+          "type": {
+            "option": "pubkey"
+          }
+        },
+        {
+          "name": "token_gate_amount",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        214,
+        142,
+        131,
+        250,
+        242,
+        83,
+        135,
+        185
+      ],
+      "docs": [
+        "Create a new poker table"
+      ],
+      "name": "create_table"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        }
+      ],
+      "args": [],
+      "discriminator": [
+        218,
+        64,
+        77,
+        16,
+        251,
+        210,
+        48,
+        157
+      ],
+      "docs": [
+        "Advance to next street (request Arcium to deal community cards)"
+      ],
+      "name": "deal_community_cards"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "table"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "player_token_account",
+          "optional": true
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "name": "token_program"
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "seat_index",
+          "type": "u8"
+        }
+      ],
+      "discriminator": [
+        14,
+        117,
+        84,
+        51,
+        95,
+        146,
+        171,
+        70
+      ],
+      "docs": [
+        "Join a poker table (with optional token-gate check)"
+      ],
+      "name": "join_table"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "arcium_mxe"
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "encrypted_hand",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  97,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "table"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "player"
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "player_id",
+          "type": "u8"
+        },
+        {
+          "name": "encrypted_card1",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "encrypted_card2",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "arcium_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "discriminator": [
+        81,
+        130,
+        82,
+        81,
+        113,
+        251,
+        151,
+        205
+      ],
+      "docs": [
+        "Callback from Arcium: hole cards dealt to player"
+      ],
+      "name": "on_cards_dealt"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "arcium_mxe"
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "encrypted_hand",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  97,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "table"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "player"
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "card_indices",
+          "type": "bytes"
+        },
+        {
+          "name": "card_values",
+          "type": "bytes"
+        }
+      ],
+      "discriminator": [
+        122,
+        200,
+        78,
+        12,
+        235,
+        103,
+        184,
+        124
+      ],
+      "docs": [
+        "Callback from Arcium: community cards revealed"
+      ],
+      "name": "on_community_cards"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "arcium_mxe"
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "encrypted_hand",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  97,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "table"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "player"
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "computation_id",
+          "type": "u64"
+        },
+        {
+          "name": "encrypted_deck_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "discriminator": [
+        62,
+        45,
+        215,
+        118,
+        42,
+        77,
+        240,
+        42
+      ],
+      "docs": [
+        "Callback from Arcium: encrypted deck is ready"
+      ],
+      "name": "on_deck_ready"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "game_result",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "table"
+              },
+              {
+                "account": "Table",
+                "kind": "account",
+                "path": "table.hand_number"
+              }
+            ]
+          },
+          "writable": true
+        },
+        {
+          "name": "arcium_mxe"
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "winners",
+          "type": {
+            "array": [
+              "u8",
+              6
+            ]
+          }
+        },
+        {
+          "name": "winner_count",
+          "type": "u8"
+        },
+        {
+          "name": "payouts",
+          "type": {
+            "array": [
+              "u64",
+              6
+            ]
+          }
+        },
+        {
+          "name": "winning_hand_category",
+          "type": "u8"
+        },
+        {
+          "name": "arcium_proof",
+          "type": {
+            "array": [
+              "u8",
+              256
+            ]
+          }
+        },
+        {
+          "name": "proof_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "discriminator": [
+        74,
+        209,
+        253,
+        18,
+        246,
+        85,
+        75,
+        218
+      ],
+      "docs": [
+        "Callback from Arcium: showdown result with ZK proof"
+      ],
+      "name": "on_showdown_result"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "creator",
+          "relations": [
+            "table"
+          ],
+          "signer": true
+        },
+        {
+          "name": "arcium_mxe"
+        }
+      ],
+      "args": [],
+      "discriminator": [
+        249,
+        47,
+        252,
+        172,
+        184,
+        162,
+        245,
+        14
+      ],
+      "docs": [
+        "Start the game - initiates Arcium deck shuffle"
+      ],
+      "name": "start_game"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "relations": [
+            "player"
+          ],
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true
+        },
+        {
+          "name": "encrypted_action",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "action_type",
+          "type": "u8"
+        },
+        {
+          "name": "raise_amount",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        222,
+        59,
+        32,
+        151,
+        194,
+        137,
+        175,
+        150
+      ],
+      "docs": [
+        "Player submits a betting action"
+      ],
+      "name": "submit_action"
+    },
+    {
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        }
+      ],
+      "args": [],
+      "discriminator": [
+        16,
+        102,
+        243,
+        12,
+        124,
+        96,
+        62,
+        30
+      ],
+      "docs": [
+        "Trigger showdown computation in Arcium"
+      ],
+      "name": "trigger_showdown"
+    },
+    {
+      "accounts": [
+        {
+          "name": "player"
+        },
+        {
+          "name": "encrypted_hand"
+        },
+        {
+          "name": "payer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "game_id",
+          "type": "u64"
+        },
+        {
+          "name": "revealed_card1",
+          "type": "u8"
+        },
+        {
+          "name": "revealed_card2",
+          "type": "u8"
+        },
+        {
+          "name": "arcium_proof",
+          "type": {
+            "array": [
+              "u8",
+              128
+            ]
+          }
+        }
+      ],
+      "discriminator": [
+        40,
+        155,
+        89,
+        162,
+        156,
+        28,
+        247,
+        42
+      ],
+      "docs": [
+        "Verify a bluff proof (optional post-game feature)"
+      ],
+      "name": "verify_bluff_proof"
+    }
+  ],
+  "metadata": {
+    "description": "Encrypted Texas Hold'em on Solana using Arcium MPC",
+    "name": "encrypted_poker",
+    "spec": "0.1.0",
+    "version": "0.1.0"
+  },
+  "types": [
+    {
+      "name": "ActionSubmitted",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "player_id",
+            "type": "u8"
+          },
+          {
+            "name": "action_type",
+            "type": "u8"
+          },
+          {
+            "name": "next_player",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "BluffRevealed",
+      "type": {
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "game_id",
+            "type": "u64"
+          },
+          {
+            "name": "card1",
+            "type": "u8"
+          },
+          {
+            "name": "card2",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "CardsDealt",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "player_id",
+            "type": "u8"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "CommunityCardsDealt",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "cards",
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "DeckReady",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "EncryptedAction",
+      "type": {
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "table",
+            "type": "pubkey"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "action_type",
+            "type": "u8"
+          },
+          {
+            "name": "encrypted_amount",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "arcium_proof",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "EncryptedHand",
+      "type": {
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "table",
+            "type": "pubkey"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "encrypted_card1",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "encrypted_card2",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "arcium_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "GameComplete",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "winner_count",
+            "type": "u8"
+          },
+          {
+            "name": "proof_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "GamePhase",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "PreFlop"
+          },
+          {
+            "name": "Flop"
+          },
+          {
+            "name": "Turn"
+          },
+          {
+            "name": "River"
+          },
+          {
+            "name": "Showdown"
+          },
+          {
+            "name": "Complete"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameResult",
+      "type": {
+        "fields": [
+          {
+            "name": "table",
+            "type": "pubkey"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "winners",
+            "type": {
+              "array": [
+                "pubkey",
+                6
+              ]
+            }
+          },
+          {
+            "name": "winner_count",
+            "type": "u8"
+          },
+          {
+            "name": "payouts",
+            "type": {
+              "array": [
+                "u64",
+                6
+              ]
+            }
+          },
+          {
+            "name": "winning_hand_category",
+            "type": "u8"
+          },
+          {
+            "name": "community_cards",
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          },
+          {
+            "name": "participants",
+            "type": {
+              "array": [
+                "pubkey",
+                6
+              ]
+            }
+          },
+          {
+            "name": "participant_count",
+            "type": "u8"
+          },
+          {
+            "name": "arcium_proof",
+            "type": {
+              "array": [
+                "u8",
+                256
+              ]
+            }
+          },
+          {
+            "name": "proof_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "GameStarted",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "player_count",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Player",
+      "type": {
+        "fields": [
+          {
+            "name": "player_id",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "table",
+            "type": "pubkey"
+          },
+          {
+            "name": "seat_index",
+            "type": "u8"
+          },
+          {
+            "name": "chip_count",
+            "type": "u64"
+          },
+          {
+            "name": "current_bet",
+            "type": "u64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u64"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "is_all_in",
+            "type": "bool"
+          },
+          {
+            "name": "has_acted",
+            "type": "bool"
+          },
+          {
+            "name": "time_bank_remaining",
+            "type": "i64"
+          },
+          {
+            "name": "encrypted_hand_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "PlayerJoined",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "seat",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "ShowdownTriggered",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "StreetAdvanced",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "new_phase",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "Table",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "small_blind",
+            "type": "u64"
+          },
+          {
+            "name": "big_blind",
+            "type": "u64"
+          },
+          {
+            "name": "min_players",
+            "type": "u8"
+          },
+          {
+            "name": "max_players",
+            "type": "u8"
+          },
+          {
+            "name": "current_players",
+            "type": "u8"
+          },
+          {
+            "name": "phase",
+            "type": {
+              "defined": {
+                "name": "GamePhase"
+              }
+            }
+          },
+          {
+            "name": "pot",
+            "type": "u64"
+          },
+          {
+            "name": "current_bet",
+            "type": "u64"
+          },
+          {
+            "name": "dealer_seat",
+            "type": "u8"
+          },
+          {
+            "name": "current_turn",
+            "type": "u8"
+          },
+          {
+            "name": "hand_number",
+            "type": "u64"
+          },
+          {
+            "name": "arcium_mxe_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "arcium_computation_id",
+            "type": "u64"
+          },
+          {
+            "name": "encrypted_deck_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "community_cards",
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          },
+          {
+            "name": "main_pot",
+            "type": "u64"
+          },
+          {
+            "name": "side_pots",
+            "type": {
+              "array": [
+                "u64",
+                6
+              ]
+            }
+          },
+          {
+            "name": "side_pot_count",
+            "type": "u8"
+          },
+          {
+            "name": "last_action_ts",
+            "type": "i64"
+          },
+          {
+            "name": "players_acted",
+            "type": "u8"
+          },
+          {
+            "name": "players_to_act",
+            "type": "u8"
+          },
+          {
+            "name": "token_gate_mint",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "token_gate_amount",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "TableCreated",
+      "type": {
+        "fields": [
+          {
+            "name": "table_id",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "small_blind",
+            "type": "u64"
+          },
+          {
+            "name": "big_blind",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    }
+  ]
+}

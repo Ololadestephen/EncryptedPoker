@@ -149,7 +149,7 @@ export function useTableRealtime(tableId: string | null) {
         });
 
         if (mountedRef.current) {
-          const expectedSize = 221; // Disc(8) + bytes(213)
+          const expectedSize = 230; // Disc(8) + bytes(222)
           const decodedPlayers: (PlayerData & { publicKey: PublicKey })[] = [];
 
           for (const raw of accounts) {
@@ -191,7 +191,12 @@ export function useTableRealtime(tableId: string | null) {
       try {
         const pda = deriveTablePDA(tid);
         const [handPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('hand'), pda.toBuffer(), publicKey.toBuffer()],
+          [
+            Buffer.from('hand'),
+            pda.toBuffer(),
+            tableToUse.handNumber.toArrayLike(Buffer, 'le', 8),
+            publicKey.toBuffer()
+          ],
           POKER_PROGRAM_ID
         );
         const handAcc = await (program.account as any).encryptedHand.fetch(handPda);
