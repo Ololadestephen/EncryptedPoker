@@ -5,6 +5,7 @@ import { PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import { Layout } from '../components/layout/Layout';
 import { PlayingCard, CardRow } from '../components/ui/PlayingCard';
+import { Card } from '../components/ui/Card';
 import { GameResultData, HAND_NAMES, formatChips, shortenWallet, cardToDisplay } from '../types';
 import { POKER_PROGRAM_ID } from '../lib/constants';
 import { deriveTablePDA } from '../hooks/useTableRealtime';
@@ -284,11 +285,15 @@ export const HandResultPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <CardRow cards={result.communityCards || (result as any).community_cards} size="lg" />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(result.communityCards || (result as any).community_cards).map((v: any, i: number) => (
+                <Card key={i} value={v} revealed={true} size="lg" />
+              ))}
+            </div>
             {myHandCards && (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <PlayingCard value={myHandCards[0]} size="lg" />
-                <PlayingCard value={myHandCards[1]} size="lg" />
+                <Card value={myHandCards[0]} revealed={true} size="lg" />
+                <Card value={myHandCards[1]} revealed={true} size="lg" />
               </div>
             )}
           </div>
