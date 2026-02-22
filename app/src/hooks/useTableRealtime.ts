@@ -145,30 +145,36 @@ export function useTableRealtime(tableId: string | null) {
         });
 
         if (mountedRef.current) {
+          const expectedSize = 221; // Disc(8) + bytes(213)
           const decodedPlayers: (PlayerData & { publicKey: PublicKey })[] = [];
 
           for (const raw of accounts) {
             try {
+              if (raw.account.data.length < expectedSize) {
+                console.warn(`[useTableRealtime] Player ${raw.pubkey.toBase58()} size mismatch: expected >=${expectedSize}, got ${raw.account.data.length}. (Possibly stale program on-chain?)`);
+              }
               const decoded = program.coder.accounts.decode('Player', raw.account.data);
               decodedPlayers.push({ ...decoded, publicKey: raw.pubkey });
-            } catch (e) {
-              console.warn(`[useTableRealtime] Failed to decode player ${raw.pubkey.toBase58()}:`, e);
+            } catch (e: any) {
+              console.warn(`[useTableRealtime] Failed to decode player ${raw.pubkey.toBase58()}:`, e.message);
             }
           }
 
           const sorted = decodedPlayers.sort((a, b) => a.seatIndex - b.seatIndex);
 
-          setPlayers(sorted);
-          playersRef.current = sorted;
+          if (sorted.length > 0) {
+            setPlayers(sorted);
+            playersRef.current = sorted;
 
-          localStorage.setItem(getCacheKey(tid), JSON.stringify(sorted.map((p: any) => ({
-            ...p,
-            publicKey: p.publicKey.toBase58(),
-            wallet: p.wallet.toBase58(),
-          }))));
+            localStorage.setItem(getCacheKey(tid), JSON.stringify(sorted.map((p: any) => ({
+              ...p,
+              publicKey: p.publicKey.toBase58(),
+              wallet: p.wallet.toBase58(),
+            }))));
+          }
         }
       } catch (err: any) {
-        console.error('[useTableRealtime] Player fetch failed:', err);
+        console.error('[useTableRealtime] Player fetch logic failed:', err);
         // Don't clear players on error, keep "stale" state for continuity
       }
     }
