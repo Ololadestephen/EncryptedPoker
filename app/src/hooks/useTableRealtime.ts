@@ -9,7 +9,7 @@ import { TableData, PlayerData } from '../types';
 import { POKER_PROGRAM_ID } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
 
-const HEARTBEAT_INTERVAL_MS = 20000; // 20s fallback poll
+const HEARTBEAT_INTERVAL_MS = 3000; // Aggressive 3s poll for hackathon responsiveness
 
 export function deriveTablePDA(tableId: string): PublicKey {
   const cleaned = tableId.replace('table-', '');
@@ -71,6 +71,7 @@ export function useTableRealtime(tableId: string | null) {
         setTable(tableAcc);
       }
 
+      // Fetch all players for this table
       const playerAccounts = await (program.account as any).player.all([
         { memcmp: { offset: 8 + 1 + 32, bytes: pda.toBase58() } }
       ]);
@@ -79,9 +80,10 @@ export function useTableRealtime(tableId: string | null) {
         const sortedPlayers = playerAccounts
           .map((p: any) => ({
             ...(p.account as PlayerData),
-            publicKey: p.publicKey, // Explicitly expose the player PDA
+            publicKey: p.publicKey,
           }))
           .sort((a: any, b: any) => a.seatIndex - b.seatIndex);
+
         setPlayers(sortedPlayers);
       }
 
@@ -106,7 +108,7 @@ export function useTableRealtime(tableId: string | null) {
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
-  }, [program]);
+  }, [program, publicKey]);
 
   useEffect(() => {
     mountedRef.current = true;
