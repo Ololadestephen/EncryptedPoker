@@ -12,6 +12,10 @@ import idl from '../idl/encrypted_poker.json';
 const HEARTBEAT_BASE_MS = 15000;
 const FETCH_COOLDOWN_MS = 2000;
 
+function getCacheKey(tid: string) {
+  return `enpoker_players_${tid}`;
+}
+
 export function deriveTablePDA(tableId: string): PublicKey {
   const cleaned = tableId.replace('table-', '');
 
@@ -63,6 +67,27 @@ export function useTableRealtime(tableId: string | null) {
   const subIdsRef = useRef<number[]>([]);
   const lastFetchRef = useRef<number>(0);
   const lastPlayerCountRef = useRef<number>(-1);
+
+  // Load from cache on startup
+  useEffect(() => {
+    if (!tableId) return;
+    try {
+      const cached = localStorage.getItem(getCacheKey(tableId));
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Convert string pubkeys back to PublicKey objects
+        const hydrated = parsed.map((p: any) => ({
+          ...p,
+          publicKey: new PublicKey(p.publicKey),
+          wallet: new PublicKey(p.wallet),
+        }));
+        setPlayers(hydrated);
+        console.log('[useTableRealtime] Loaded players from cache');
+      }
+    } catch (e) {
+      console.warn('Failed to load player cache', e);
+    }
+  }, [tableId]);
 
   // Decoupled fetching with recovery logic
   const fetchTableData = useCallback(async (tid: string, force = false) => {
@@ -116,6 +141,13 @@ export function useTableRealtime(tableId: string | null) {
 
           setPlayers(sorted);
           lastPlayerCountRef.current = currentTableState.currentPlayers;
+
+          // Save to cache
+          localStorage.setItem(getCacheKey(tid), JSON.stringify(sorted.map((p: any) => ({
+            ...p,
+            publicKey: p.publicKey.toBase58(),
+            wallet: p.wallet.toBase58(),
+          }))));
         }
       } catch (err: any) {
         if (err.message?.includes('429')) {
