@@ -55,12 +55,13 @@ interface SeatProps {
   isMe: boolean;
   myCards?: number[];
   lastActionTs: number;
+  gamePhase: string;
   onJoin?: (seat: number) => void;
   onReact?: (type: number) => void;
 }
 
 const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
-  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, onJoin, onReact, table,
+  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, gamePhase, onJoin, onReact, table,
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmoji, setActiveEmoji] = useState<{ type: number; id: number } | null>(null);
@@ -94,20 +95,24 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
   );
 
   if (!player) {
+    const canJoin = gamePhase === 'Waiting';
     return (
       <button
-        onClick={() => onJoin?.(seatIndex)}
-        disabled={isMe}
+        onClick={() => canJoin && onJoin?.(seatIndex)}
+        disabled={isMe || !canJoin}
+        title={canJoin ? `Join seat ${seatIndex + 1}` : 'Game already in progress'}
         style={{
           position: 'absolute', ...pos as any,
           width: 90, height: 56,
-          border: '1.5px dashed rgba(255,255,255,0.1)',
+          border: `1.5px dashed ${canJoin ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)'}`,
           borderRadius: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.75rem', color: 'rgba(255,255,255,0.2)',
-          background: 'transparent', cursor: 'pointer',
+          fontSize: '0.7rem',
+          color: canJoin ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+          background: 'transparent',
+          cursor: canJoin ? 'pointer' : 'default',
         }}>
-        Join Seat {seatIndex + 1}
+        {canJoin ? `Join Seat ${seatIndex + 1}` : '—'}
       </button>
     );
   }
@@ -1189,6 +1194,7 @@ export const GameTablePage: React.FC = () => {
                         isMe={isMeLocal}
                         myCards={isMeLocal ? myCards : undefined}
                         lastActionTs={table ? table.lastActionTs : 0}
+                        gamePhase={phase}
                         onJoin={handleJoin}
                         onReact={handleReact}
                         table={table}

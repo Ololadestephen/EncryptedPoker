@@ -27,7 +27,10 @@ export function parseTxError(err: unknown): string {
     if (lower.includes('not your turn')) {
         return "It's not your turn.";
     }
-    if (lower.includes('game already started') || lower.includes('wrong phase')) {
+    if (lower.includes('game already started') || lower.includes('gamealreadystarted')) {
+        return 'This table already has a game in progress. Create a new table to join.';
+    }
+    if (lower.includes('wrong phase') || lower.includes('invalidphase')) {
         return 'Action not allowed at this stage of the game.';
     }
     if (lower.includes('simulation failed')) {
