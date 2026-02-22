@@ -1,5 +1,5 @@
 // src/pages/Lobby.tsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
@@ -192,9 +192,34 @@ export const LobbyPage: React.FC = () => {
     return new anchor.Program(idl as any, provider);
   }, [connection, publicKey]);
 
-  const loadTables = useCallback(async () => {
-    setIsLoading(true);
+  const tablesRef = useRef<TableListing[]>([]);
+  const lastFetchRef = useRef<number>(0);
+  const FETCH_COOLDOWN_MS = 3000;
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('enpoker_lobby_cache');
+      if (cached) {
+        setTables(JSON.parse(cached));
+        setIsLoading(false);
+      }
+    } catch (e) {
+      console.warn('Failed to load lobby cache', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    tablesRef.current = tables;
+  }, [tables]);
+
+  const loadTables = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < FETCH_COOLDOWN_MS) return;
+    lastFetchRef.current = now;
+
+    if (tablesRef.current.length === 0) setIsLoading(true);
     setLobbyError(null);
+
     try {
       const allTables = await (program.account as any).table.all();
       const mapped: TableListing[] = allTables.map((t: any) => {
@@ -212,16 +237,26 @@ export const LobbyPage: React.FC = () => {
           handNumber: acc.handNumber.toNumber(),
         };
       });
+
       setTables(mapped);
+      localStorage.setItem('enpoker_lobby_cache', JSON.stringify(mapped));
     } catch (err: any) {
-      console.error('[Lobby] Error loading tables:', err);
-      setLobbyError(err?.message ?? 'Failed to load tables from RPC');
+      console.error('[Lobby] RPC Error:', err);
+      if (err.message?.includes('429')) {
+        setLobbyError('RPC Rate Limited (429). Using cached data.');
+      } else {
+        setLobbyError(err?.message ?? 'Failed to load tables');
+      }
     } finally {
       setIsLoading(false);
     }
   }, [program]);
 
-  useEffect(() => { loadTables(); }, [loadTables]);
+  useEffect(() => {
+    loadTables();
+    const interval = setInterval(() => loadTables(), 8000); // Poll every 8s
+    return () => clearInterval(interval);
+  }, [loadTables]);
 
   const filtered = tables
     .filter(t => filter === 'all' ? true : filter === 'open' ? t.phase === 'Waiting' : t.phase !== 'Waiting')
@@ -351,7 +386,7 @@ export const LobbyPage: React.FC = () => {
               <option value="pot">Pot Size</option>
               <option value="stakes">Stakes</option>
             </select>
-            <button className="btn btn-ghost btn-sm" onClick={loadTables}>↻ Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => loadTables(true)}>↻ Refresh</button>
           </div>
         </div>
 
@@ -362,7 +397,7 @@ export const LobbyPage: React.FC = () => {
             color: '#fca5a5', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
           }}>
             ⚠️ <strong>RPC Error:</strong> {lobbyError}
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={loadTables}>Retry</button>
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => loadTables(true)}>Retry</button>
           </div>
         )}
 

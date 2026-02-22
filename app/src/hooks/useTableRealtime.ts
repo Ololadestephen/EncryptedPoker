@@ -9,8 +9,8 @@ import { TableData, PlayerData } from '../types';
 import { POKER_PROGRAM_ID } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
 
-const HEARTBEAT_BASE_MS = 15000;
-const FETCH_COOLDOWN_MS = 2000;
+const HEARTBEAT_BASE_MS = 3000; // Faster refresh as requested (Helius)
+const FETCH_COOLDOWN_MS = 1000; // Lower cooldown for snappier UI
 
 function getCacheKey(tid: string) {
   return `enpoker_players_${tid}`;
@@ -27,17 +27,13 @@ export function deriveTablePDA(tableId: string): PublicKey {
       POKER_PROGRAM_ID
     );
     return pda;
-  } catch {
-    // Not a number — fall through
-  }
+  } catch { /* ignored */ }
 
   // Case 2: the string is already a valid base58 pubkey (the table PDA itself)
   try {
     const pk = new PublicKey(cleaned);
     return pk; // Already the account address — use it directly
-  } catch {
-    // Not a valid pubkey — fall through
-  }
+  } catch { /* ignored */ }
 
   // Case 3: raw string fallback (local dev / test)
   const [pda] = PublicKey.findProgramAddressSync(
@@ -66,7 +62,14 @@ export function useTableRealtime(tableId: string | null) {
   const mountedRef = useRef(true);
   const subIdsRef = useRef<number[]>([]);
   const lastFetchRef = useRef<number>(0);
-  const lastPlayerCountRef = useRef<number>(-1);
+
+  // High-performance state tracking to avoid stale closures
+  const tableRef = useRef<TableData | null>(null);
+  const playersRef = useRef<(PlayerData & { publicKey: PublicKey })[]>([]);
+
+  // Sync refs with state
+  useEffect(() => { tableRef.current = table; }, [table]);
+  useEffect(() => { playersRef.current = players; }, [players]);
 
   // Load from cache on startup
   useEffect(() => {
@@ -82,6 +85,7 @@ export function useTableRealtime(tableId: string | null) {
           wallet: new PublicKey(p.wallet),
         }));
         setPlayers(hydrated);
+        playersRef.current = hydrated;
         console.log('[useTableRealtime] Loaded players from cache');
       }
     } catch (e) {
@@ -97,7 +101,7 @@ export function useTableRealtime(tableId: string | null) {
     if (!force && now - lastFetchRef.current < FETCH_COOLDOWN_MS) return;
     lastFetchRef.current = now;
 
-    let currentTableState = table;
+    let tableToUse = tableRef.current;
 
     // 1. Fetch Table (The root of truth)
     try {
@@ -105,7 +109,8 @@ export function useTableRealtime(tableId: string | null) {
       const tableAcc = await (program.account as any).table.fetch(pda);
       if (mountedRef.current) {
         setTable(tableAcc);
-        currentTableState = tableAcc;
+        tableRef.current = tableAcc;
+        tableToUse = tableAcc;
         setError(null);
       }
     } catch (err: any) {
@@ -117,21 +122,23 @@ export function useTableRealtime(tableId: string | null) {
       }
     }
 
-    if (!currentTableState) {
+    if (!tableToUse) {
       if (mountedRef.current && isLoading) setIsLoading(false);
       return;
     }
 
     // 2. Fetch Players (Only if count changed or forced)
+    // We fetch if: count mismatch, list empty, or forced
+    const currentList = playersRef.current;
     const shouldFetchPlayers = force ||
-      lastPlayerCountRef.current !== currentTableState.currentPlayers ||
-      players.length === 0;
+      tableToUse.currentPlayers !== currentList.length ||
+      currentList.length === 0;
 
     if (shouldFetchPlayers) {
       try {
         const pda = deriveTablePDA(tid);
         const playerAccounts = await (program.account as any).player.all([
-          { memcmp: { offset: 8 + 1 + 32, bytes: pda.toBase58() } }
+          { memcmp: { offset: 41, bytes: pda.toBase58() } }
         ]);
 
         if (mountedRef.current) {
@@ -140,7 +147,7 @@ export function useTableRealtime(tableId: string | null) {
             .sort((a: any, b: any) => a.seatIndex - b.seatIndex);
 
           setPlayers(sorted);
-          lastPlayerCountRef.current = currentTableState.currentPlayers;
+          playersRef.current = sorted;
 
           // Save to cache
           localStorage.setItem(getCacheKey(tid), JSON.stringify(sorted.map((p: any) => ({
@@ -160,8 +167,8 @@ export function useTableRealtime(tableId: string | null) {
     }
 
     // 3. Fetch Hand (Only if seated and game running)
-    const isSeated = players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
-    const gameRunning = currentTableState.phase && !('waiting' in currentTableState.phase);
+    const isSeated = playersRef.current.some(p => p.wallet.toBase58() === publicKey?.toBase58());
+    const gameRunning = tableToUse.phase && !('waiting' in tableToUse.phase);
 
     if (publicKey && isSeated && gameRunning) {
       try {
@@ -180,7 +187,7 @@ export function useTableRealtime(tableId: string | null) {
     }
 
     if (mountedRef.current && isLoading) setIsLoading(false);
-  }, [program, publicKey, players, table, isLoading]);
+  }, [program, publicKey, isLoading]);
 
   useEffect(() => {
     mountedRef.current = true;

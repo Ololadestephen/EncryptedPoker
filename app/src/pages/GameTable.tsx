@@ -1105,7 +1105,10 @@ export const GameTablePage: React.FC = () => {
         background: 'var(--surface-2)',
         zIndex: 100, position: 'relative',
       }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}>← Lobby</button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}>← Lobby</button>
+          <button className="btn btn-ghost btn-sm" onClick={refetch} title="Force Refresh RPC State">↻</button>
+        </div>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--gold)' }}>
           {tableName}
         </div>
