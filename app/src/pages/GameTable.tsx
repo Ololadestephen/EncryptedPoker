@@ -687,6 +687,11 @@ export const GameTablePage: React.FC = () => {
           payer: publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
+        .remainingAccounts(players.map(p => ({
+          pubkey: p.publicKey,
+          isSigner: false,
+          isWritable: true,
+        })))
         .rpc();
 
       refetch();
@@ -708,6 +713,11 @@ export const GameTablePage: React.FC = () => {
           table: tablePda,
           payer: publicKey,
         })
+        .remainingAccounts(players.map(p => ({
+          pubkey: p.publicKey,
+          isSigner: false,
+          isWritable: true,
+        })))
         .rpc();
       console.log('[GameTable] Deal community cards sent');
       refetch();
@@ -764,6 +774,11 @@ export const GameTablePage: React.FC = () => {
           table: tablePda,
           payer: publicKey,
         })
+        .remainingAccounts(players.map(p => ({
+          pubkey: p.publicKey,
+          isSigner: false,
+          isWritable: true,
+        })))
         .rpc();
       console.log('[GameTable] Showdown triggered — Arcium computing winner...');
       refetch();
