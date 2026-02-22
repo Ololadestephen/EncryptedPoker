@@ -587,6 +587,20 @@ export const GameTablePage: React.FC = () => {
 
   const handleJoin = useCallback(async (seatIndex: number) => {
     if (!publicKey || !tableId) return;
+
+    // Guard: don't join if already seated
+    if (myPlayer) {
+      alert('You are already seated at this table.');
+      return;
+    }
+
+    // Guard: don't join an occupied seat
+    const seatTaken = players.some(p => p.seatIndex === seatIndex);
+    if (seatTaken) {
+      alert('That seat is already taken. Please choose another.');
+      return;
+    }
+
     setIsActing(true);
     try {
       const tablePda = deriveTablePDA(tableId);
@@ -595,13 +609,13 @@ export const GameTablePage: React.FC = () => {
         POKER_PROGRAM_ID
       );
 
+      // Note: player_token_account is optional (no token gate on this table)
+      // Omit it entirely — Anchor resolves Option<Account> as absent when not provided
       await (program.methods as any).joinTable(seatIndex)
         .accounts({
           table: tablePda,
           player: playerPda,
           payer: publicKey,
-          playerTokenAccount: null,
-          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .rpc();
@@ -613,7 +627,7 @@ export const GameTablePage: React.FC = () => {
     } finally {
       setIsActing(false);
     }
-  }, [publicKey, tableId, program, refetch]);
+  }, [publicKey, tableId, program, refetch, myPlayer, players]);
 
   const handleStart = useCallback(async () => {
     if (!publicKey || !tableId) return;
