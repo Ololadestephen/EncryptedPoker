@@ -592,7 +592,14 @@ export const GameTablePage: React.FC = () => {
   const phase = table ? parseGamePhase(table.phase) : 'Waiting';
   const communityCards = (table?.communityCards || (table as any)?.community_cards) ?? [255, 255, 255, 255, 255];
   const myPlayer = players.find(p => p.wallet.toBase58() === publicKey?.toBase58()) ?? null;
-  const isMyTurn = !!(myPlayer && table && table.currentTurn === myPlayer.playerId);
+  const isMyTurn = !!(
+    myPlayer &&
+    table &&
+    table.currentTurn === myPlayer.playerId &&
+    table.currentTurn !== 255 &&
+    !myPlayer.isAllIn &&
+    myPlayer.isActive
+  );
   const isDealing = phase === 'PreFlop' && !myHand && players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
 
   const handleJoin = useCallback(async (seatIndex: number) => {
@@ -650,6 +657,11 @@ export const GameTablePage: React.FC = () => {
           creator: publicKey,
           arciumMxe: ARCIUM_MXE_PUBKEY,
         })
+        .remainingAccounts(players.map(p => ({
+          pubkey: p.publicKey,
+          isSigner: false,
+          isWritable: true,
+        })))
         .rpc();
       refetch();
     } catch (err) {
@@ -736,12 +748,19 @@ export const GameTablePage: React.FC = () => {
       const tablePda = deriveTablePDA(tableId);
       const currentPhaseStr = parseGamePhase(table.phase);
       let indices: number[] = [];
+
       if (currentPhaseStr === 'Flop') indices = [0, 1, 2];
       else if (currentPhaseStr === 'Turn') indices = [3];
       else if (currentPhaseStr === 'River') indices = [4];
+      else if (currentPhaseStr === 'Showdown' || currentPhaseStr === 'Complete') {
+        // Reveal all locked cards
+        indices = communityCards
+          .map((v: any, i: number) => (v === 255 ? i : -1))
+          .filter((i: number) => i !== -1);
+      }
 
       if (indices.length === 0) {
-        alert('Nothing to reveal for current phase.');
+        alert('All cards already revealed or nothing to reveal.');
         return;
       }
 
@@ -763,6 +782,58 @@ export const GameTablePage: React.FC = () => {
       setIsActing(false);
     }
   }, [publicKey, tableId, table, program, refetch]);
+
+  const handleForceComplete = useCallback(async () => {
+    if (!publicKey || !tableId || !table) return;
+    setIsActing(true);
+    try {
+      const tablePda = deriveTablePDA(tableId);
+      const [resultPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('result'),
+          tablePda.toBuffer(),
+          table.handNumber.toArrayLike(Buffer, 'le', 8)
+        ],
+        POKER_PROGRAM_ID
+      );
+
+      // Dummy results for debug: Player 0 wins the pot
+      const winners = new Uint8Array(6).fill(0);
+      winners[0] = 0;
+      const payouts = new Array(6).fill(new anchor.BN(0));
+      payouts[0] = table.pot;
+
+      await (program.methods as any).onShowdownResult(
+        Array.from(winners),
+        1, // winner_count
+        payouts,
+        0, // High Card
+        new Array(256).fill(0), // Dummy proof
+        new Array(32).fill(0)   // Dummy proof hash
+      )
+        .accounts({
+          table: tablePda,
+          gameResult: resultPda,
+          arciumMxe: ARCIUM_MXE_PUBKEY,
+          payer: publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .remainingAccounts(players.map(p => ({
+          pubkey: p.publicKey,
+          isSigner: false,
+          isWritable: true,
+        })))
+        .rpc();
+
+      console.log('[GameTable] Debug manual complete sent');
+      refetch();
+    } catch (err) {
+      console.error('[GameTable] Manual complete failed:', err);
+      alert(parseTxError(err));
+    } finally {
+      setIsActing(false);
+    }
+  }, [publicKey, tableId, table, program, refetch, players]);
 
   const handleTriggerShowdown = useCallback(async () => {
     if (!publicKey || !tableId) return;
@@ -1348,6 +1419,16 @@ export const GameTablePage: React.FC = () => {
               >
                 👁️ FORCE REVEAL BOARD
               </button>
+              {phase === 'Showdown' && (
+                <button
+                  onClick={handleForceComplete}
+                  disabled={isActing}
+                  className="btn btn-ghost"
+                  style={{ width: '100%', border: '1px solid var(--red)', color: 'var(--red)', marginTop: '0.25rem' }}
+                >
+                  🏁 FORCE FINISH HAND
+                </button>
+              )}
             </div>
           )}
 
