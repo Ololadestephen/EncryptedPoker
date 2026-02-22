@@ -127,8 +127,7 @@ export function useTableRealtime(tableId: string | null) {
       return;
     }
 
-    // 2. Fetch Players (Only if count changed or forced)
-    // We fetch if: count mismatch, list empty, or forced
+    // 2. Fetch Players
     const currentList = playersRef.current;
     const shouldFetchPlayers = force ||
       tableToUse.currentPlayers !== currentList.length ||
@@ -137,19 +136,31 @@ export function useTableRealtime(tableId: string | null) {
     if (shouldFetchPlayers) {
       try {
         const pda = deriveTablePDA(tid);
-        const playerAccounts = await (program.account as any).player.all([
-          { memcmp: { offset: 41, bytes: pda.toBase58() } }
-        ]);
+        // Defensive: Use getProgramAccounts instead of .all() to handle decoding errors per-account
+        const accounts = await connection.getProgramAccounts(program.programId, {
+          filters: [
+            { memcmp: { offset: 0, bytes: anchor.utils.bytes.bs58.encode(program.coder.accounts.memcmp('Player').bytes) } },
+            { memcmp: { offset: 41, bytes: pda.toBase58() } }
+          ]
+        });
 
         if (mountedRef.current) {
-          const sorted = playerAccounts
-            .map((p: any) => ({ ...(p.account as PlayerData), publicKey: p.publicKey }))
-            .sort((a: any, b: any) => a.seatIndex - b.seatIndex);
+          const decodedPlayers: (PlayerData & { publicKey: PublicKey })[] = [];
+
+          for (const raw of accounts) {
+            try {
+              const decoded = program.coder.accounts.decode('Player', raw.account.data);
+              decodedPlayers.push({ ...decoded, publicKey: raw.pubkey });
+            } catch (e) {
+              console.warn(`[useTableRealtime] Failed to decode player ${raw.pubkey.toBase58()}:`, e);
+            }
+          }
+
+          const sorted = decodedPlayers.sort((a, b) => a.seatIndex - b.seatIndex);
 
           setPlayers(sorted);
           playersRef.current = sorted;
 
-          // Save to cache
           localStorage.setItem(getCacheKey(tid), JSON.stringify(sorted.map((p: any) => ({
             ...p,
             publicKey: p.publicKey.toBase58(),
@@ -157,11 +168,7 @@ export function useTableRealtime(tableId: string | null) {
           }))));
         }
       } catch (err: any) {
-        if (err.message?.includes('429')) {
-          console.warn('[useTableRealtime] Player fetch limited (429) - keeping stale list');
-        } else {
-          console.error('[useTableRealtime] Player fetch failed:', err);
-        }
+        console.error('[useTableRealtime] Player fetch failed:', err);
         // Don't clear players on error, keep "stale" state for continuity
       }
     }
