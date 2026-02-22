@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Layout } from '../components/layout/Layout';
 import { PlayingCard, CardRow } from '../components/ui/PlayingCard';
+import { Card } from '../components/ui/Card';
 import { useTableRealtime, useTurnTimer, deriveTablePDA } from '../hooks/useTableRealtime';
 import { PlayerData, formatChips, shortenWallet, phaseLabel, HAND_NAMES, parseGamePhase, bytesToString } from '../types';
 import * as anchor from '@coral-xyz/anchor';
@@ -10,6 +11,9 @@ import { POKER_PROGRAM_ID, ARCIUM_MXE_PUBKEY, SOLANA_NETWORK } from '../lib/cons
 import idl from '../idl/encrypted_poker.json';
 import { PublicKey } from '@solana/web3.js';
 import { parseTxError } from '../lib/parseTxError';
+
+// DEBUG OVERRIDE as requested by user - force all cards to show
+const forceReveal = true;
 
 // ===== Player Seat =====
 const SEAT_POSITIONS = [
@@ -48,6 +52,14 @@ function useWindowSize() {
   return size;
 }
 
+interface CardProps {
+  value?: number;
+  encryptedData?: number[] | Uint8Array;
+  revealed?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}
+
 interface SeatProps {
   player: PlayerData | null;
   seatIndex: number;
@@ -58,10 +70,11 @@ interface SeatProps {
   gamePhase: string;
   onJoin?: (seat: number) => void;
   onReact?: (type: number) => void;
+  myHand?: any;
 }
 
 const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
-  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, gamePhase, onJoin, onReact, table,
+  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, gamePhase, onJoin, onReact, table, myHand,
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmoji, setActiveEmoji] = useState<{ type: number; id: number } | null>(null);
@@ -146,9 +159,15 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
           transition: 'all 0.3s var(--ease-out)',
         }}>
           {isMe && myCards?.length === 2 ? (
-            <CardRow cards={myCards} size="sm" />
+            <div style={{ display: 'flex', gap: '0.2rem' }}>
+              <Card encryptedData={myHand?.encryptedCard1 || myHand?.encrypted_card1} revealed={true} size="sm" />
+              <Card encryptedData={myHand?.encryptedCard2 || myHand?.encrypted_card2} revealed={true} size="sm" />
+            </div>
           ) : (
-            <CardRow cards={[255, 255]} size="sm" />
+            <div style={{ display: 'flex', gap: '0.2rem' }}>
+              <Card revealed={false} size="sm" />
+              <Card revealed={false} size="sm" />
+            </div>
           )}
         </div>
       )}
@@ -1305,17 +1324,20 @@ export const GameTablePage: React.FC = () => {
                   overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {/* Community Cards */}
-                  <div style={{ position: 'relative', zIndex: 10 }}>
-                    <CardRow
-                      cards={communityCards.map((val: any, i: number) => {
-                        const revealed = (i < 3 && phase !== 'PreFlop') ||
-                          (i < 4 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
-                          (i < 5 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
-                        return revealed ? val : 255;
-                      })}
-                      size="lg"
-                      gap="0.5rem"
-                    />
+                  <div style={{ position: 'relative', zIndex: 10, display: 'flex', gap: '0.5rem' }}>
+                    {communityCards.map((val: any, i: number) => {
+                      const revealed = (i < 3 && phase !== 'PreFlop') ||
+                        (i < 4 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
+                        (i < 5 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
+                      return (
+                        <Card
+                          key={i}
+                          value={val}
+                          revealed={forceReveal || revealed}
+                          size="lg"
+                        />
+                      );
+                    })}
                   </div>
 
                   {/* Total Pot */}
@@ -1344,6 +1366,7 @@ export const GameTablePage: React.FC = () => {
                         isMyTurn={p?.playerId === table?.currentTurn}
                         isMe={isMeLocal}
                         myCards={isMeLocal ? myCards : undefined}
+                        myHand={isMeLocal ? myHand : undefined}
                         lastActionTs={table ? table.lastActionTs : 0}
                         gamePhase={phase}
                         onJoin={handleJoin}
