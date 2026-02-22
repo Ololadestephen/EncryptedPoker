@@ -205,7 +205,7 @@ export const HandResultPage: React.FC = () => {
             winner={result.winners[0].toBase58()}
             payout={result.payouts[0].toNumber()}
             handCategory={result.winningHandCategory}
-            communityCards={result.communityCards}
+            communityCards={result.communityCards || (result as any).community_cards}
             isMe={!!isWinner}
           />
           {confettiParticles.map((p, i) => (
@@ -237,7 +237,7 @@ export const HandResultPage: React.FC = () => {
           }}>
             Board Cards <span style={{ opacity: 0.3 }}>——</span>
           </div>
-          <CardRow cards={result.communityCards} size="lg" />
+          <CardRow cards={result.communityCards || (result as any).community_cards} size="lg" />
         </div>
 
         <div className="animate-fade-up delay-2" style={{ marginBottom: '1rem' }}>

@@ -569,13 +569,18 @@ export const GameTablePage: React.FC = () => {
   // Decrypt hole cards from the Arcium-encrypted byte arrays.
   const myCards = useMemo(() => {
     if (!myHand) return undefined;
-    const decode = (bytes: number[]): number => {
-      const b = bytes.slice(0, 4);
-      const u32 = (b[0] ?? 0) | ((b[1] ?? 0) << 8) | ((b[2] ?? 0) << 16) | ((b[3] ?? 0) << 24);
+    const decode = (bytes: any): number => {
+      if (!bytes) return 255;
+      const arr = Array.from(bytes as any);
+      const b = (arr as number[]).slice(0, 4);
+      const u32 = ((b[0] ?? 0) | ((b[1] ?? 0) << 8) | ((b[2] ?? 0) << 16) | ((b[3] ?? 0) << 24)) >>> 0;
       return Math.abs(u32) % 52;
     };
-    const card1 = decode(Array.from(myHand.encryptedCard1));
-    const card2 = decode(Array.from(myHand.encryptedCard2));
+    // Support both snake_case (raw) and camelCase (mapped)
+    const card1_raw = myHand.encryptedCard1 || myHand.encrypted_card1;
+    const card2_raw = myHand.encryptedCard2 || myHand.encrypted_card2;
+    const card1 = decode(card1_raw);
+    const card2 = decode(card2_raw);
     return [card1, card2 === card1 ? (card2 + 1) % 52 : card2];
   }, [myHand]);
 
@@ -585,7 +590,7 @@ export const GameTablePage: React.FC = () => {
   }, [connection, wallet]);
 
   const phase = table ? parseGamePhase(table.phase) : 'Waiting';
-  const communityCards = table?.communityCards ?? [255, 255, 255, 255, 255];
+  const communityCards = (table?.communityCards || (table as any)?.community_cards) ?? [255, 255, 255, 255, 255];
   const myPlayer = players.find(p => p.wallet.toBase58() === publicKey?.toBase58()) ?? null;
   const isMyTurn = !!(myPlayer && table && table.currentTurn === myPlayer.playerId);
   const isDealing = phase === 'PreFlop' && !myHand && players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
@@ -940,9 +945,9 @@ export const GameTablePage: React.FC = () => {
             }}>ENcryptedPoker</div>
 
             {/* Community cards */}
-            <div style={{ display: 'flex', gap: '0.375rem' }}>
-              {communityCards.map((val, i) => {
-                const flopped = phase === 'Flop' ? i < 3 : phase === 'Turn' ? i < 4 : phase === 'River' || phase === 'Complete' || phase === 'Showdown';
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              {communityCards.map((val: any, i: number) => {
+                const flopped = (i < 3 && phase !== 'PreFlop') || (i < 4 && phase === 'Turn') || (i < 5 && (phase === 'River' || phase === 'Complete' || phase === 'Showdown'));
                 return <PlayingCard key={i} value={flopped ? val : -1} size="sm" />;
               })}
             </div>
@@ -1167,9 +1172,9 @@ export const GameTablePage: React.FC = () => {
                   overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {/* Community Cards */}
-                  <div style={{ display: 'flex', gap: '0.75rem', zIndex: 10 }}>
-                    {communityCards.map((val, i) => {
-                      const flopped = phase === 'Flop' ? i < 3 : phase === 'Turn' ? i < 4 : phase === 'River' || phase === 'Complete' || phase === 'Showdown';
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                    {communityCards.map((val: any, i: number) => {
+                      const flopped = (i < 3 && phase !== 'PreFlop') || (i < 4 && phase === 'Turn') || (i < 5 && (phase === 'River' || phase === 'Complete' || phase === 'Showdown'));
                       return <PlayingCard key={i} value={flopped ? val : -1} size="md" />;
                     })}
                   </div>
@@ -1272,6 +1277,18 @@ export const GameTablePage: React.FC = () => {
                 {isMyTurn ? 'YOUR TURN' : 'WAITING'}
               </div>
             </div>
+          )}
+
+          {/* Creator Controls (Deal button) */}
+          {table && publicKey && table.creator.toBase58() === publicKey.toBase58() && (['PreFlop', 'Flop', 'Turn', 'River'].includes(phase)) && (
+            <button
+              onClick={handleDealCommunityCards}
+              disabled={isActing}
+              className="btn btn-gold"
+              style={{ width: '100%', padding: '1rem', fontSize: '1rem', gap: '0.75rem' }}
+            >
+              {isActing ? <div className="spinner-sm" /> : '🎴'} DEAL NEXT STREET
+            </button>
           )}
 
           <div style={{ flex: 1, minHeight: 0 }}>
