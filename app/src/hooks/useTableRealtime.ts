@@ -9,7 +9,8 @@ import { TableData, PlayerData } from '../types';
 import { POKER_PROGRAM_ID } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
 
-const HEARTBEAT_INTERVAL_MS = 3000; // Aggressive 3s poll for hackathon responsiveness
+const HEARTBEAT_INTERVAL_MS = 15000; // Increased to 15s - rely on WS primarily
+const FETCH_COOLDOWN_MS = 1500; // Prevent spamming within 1.5s
 
 export function deriveTablePDA(tableId: string): PublicKey {
   const cleaned = tableId.replace('table-', '');
@@ -60,9 +61,19 @@ export function useTableRealtime(tableId: string | null) {
 
   const mountedRef = useRef(true);
   const subIdsRef = useRef<number[]>([]);
+  const lastFetchRef = useRef<number>(0);
+  const lastPlayerCountRef = useRef<number>(-1);
 
-  const fetchTableData = useCallback(async (tid: string) => {
+  const fetchTableData = useCallback(async (tid: string, force = false) => {
     if (!mountedRef.current) return;
+
+    // Throttling: Skip if fetched too recently unless forced
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < FETCH_COOLDOWN_MS) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     try {
       const pda = deriveTablePDA(tid);
       const tableAcc = await (program.account as any).table.fetch(pda);
@@ -71,24 +82,34 @@ export function useTableRealtime(tableId: string | null) {
         setTable(tableAcc);
       }
 
-      // Fetch all players for this table
-      const playerAccounts = await (program.account as any).player.all([
-        { memcmp: { offset: 8 + 1 + 32, bytes: pda.toBase58() } }
-      ]);
+      // Optimization: Only fetch players if the count changed or we have none
+      const shouldFetchPlayers = force ||
+        lastPlayerCountRef.current !== tableAcc.currentPlayers ||
+        players.length === 0;
 
-      if (mountedRef.current) {
-        const sortedPlayers = playerAccounts
-          .map((p: any) => ({
-            ...(p.account as PlayerData),
-            publicKey: p.publicKey,
-          }))
-          .sort((a: any, b: any) => a.seatIndex - b.seatIndex);
+      if (shouldFetchPlayers) {
+        const playerAccounts = await (program.account as any).player.all([
+          { memcmp: { offset: 8 + 1 + 32, bytes: pda.toBase58() } }
+        ]);
 
-        setPlayers(sortedPlayers);
+        if (mountedRef.current) {
+          const sortedPlayers = playerAccounts
+            .map((p: any) => ({
+              ...(p.account as PlayerData),
+              publicKey: p.publicKey,
+            }))
+            .sort((a: any, b: any) => a.seatIndex - b.seatIndex);
+
+          setPlayers(sortedPlayers);
+          lastPlayerCountRef.current = tableAcc.currentPlayers;
+        }
       }
 
-      // Fetch current player's hand if seated
-      if (publicKey && mountedRef.current) {
+      // Optimization: Only fetch hand if seated and game is active
+      const isSeated = players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
+      const gameRunning = tableAcc.phase && !('waiting' in tableAcc.phase);
+
+      if (publicKey && isSeated && gameRunning && mountedRef.current) {
         try {
           const [handPda] = PublicKey.findProgramAddressSync(
             [Buffer.from('hand'), pda.toBuffer(), publicKey.toBuffer()],
@@ -103,12 +124,16 @@ export function useTableRealtime(tableId: string | null) {
         setMyHand(null);
       }
     } catch (err: any) {
-      console.error('[useTableRealtime] Fetch error:', err);
+      if (err.message?.includes('429')) {
+        console.warn('[useTableRealtime] RPC Rate Limited (429)');
+      } else {
+        console.error('[useTableRealtime] Fetch error:', err);
+      }
       if (mountedRef.current) setError(err.message);
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
-  }, [program, publicKey]);
+  }, [program, publicKey, players.length]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -140,7 +165,7 @@ export function useTableRealtime(tableId: string | null) {
   }, [tableId, connection, fetchTableData, publicKey]);
 
   const refetch = useCallback(() => {
-    if (tableId) fetchTableData(tableId);
+    if (tableId) fetchTableData(tableId, true);
   }, [tableId, fetchTableData]);
 
   return { table, players, myHand, isLoading, error, connectionMode, refetch };
