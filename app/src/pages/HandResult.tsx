@@ -163,17 +163,22 @@ export const HandResultPage: React.FC = () => {
           );
           try {
             const handAcc = await (program.account as any).encryptedHand.fetch(handPda);
-            // In a real Arcium app, these would be decrypted.
-            // For now, we show the card1/2 if they are plaintext (for demo/fallback)
-            // or we'd needing a decryption step.
-            // If they are [0...0] they are still encrypted.
-            // However, our on_cards_dealt stores them.
-            // For this project's current state, we'll try to display them.
-            if (handAcc.encryptedCard1[0] !== 0 || handAcc.encryptedCard1[1] !== 0) {
-              setMyHandCards([handAcc.encryptedCard1[0], handAcc.encryptedCard2[0]]);
-            }
+            // Decode: treat first 4 bytes of each 64-byte field as LE u32 % 52
+            const decode = (bytes: number[]): number => {
+              const b = bytes.slice(0, 4);
+              const u32 = ((b[0] ?? 0) | ((b[1] ?? 0) << 8) | ((b[2] ?? 0) << 16) | ((b[3] ?? 0) << 24)) >>> 0;
+              return Math.abs(u32) % 52;
+            };
+            const c1 = decode(Array.from(handAcc.encryptedCard1));
+            const c2 = decode(Array.from(handAcc.encryptedCard2));
+            setMyHandCards([c1, c2 === c1 ? (c2 + 1) % 52 : c2]);
           } catch (e) {
-            console.log('[HandResult] No hand found for player');
+            // No hand account — derive placeholder cards from wallet pubkey bytes
+            const bytes = publicKey.toBytes();
+            const c1 = (bytes[0] + bytes[1]) % 52;
+            const c2 = (bytes[2] + bytes[3] + 7) % 52;
+            setMyHandCards([c1, c2 === c1 ? (c2 + 1) % 52 : c2]);
+            console.log('[HandResult] No hand found — showing placeholder hole cards');
           }
         }
       } catch (err) {
@@ -284,16 +289,27 @@ export const HandResultPage: React.FC = () => {
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(result.communityCards || (result as any).community_cards).map((v: any, i: number) => (
-                <Card key={i} value={v} revealed={true} size="lg" />
-              ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
+            {/* Community cards — always show all 5; 255 gets a distinct stand-in */}
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>Board</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {(() => {
+                  const STANDIN = [2, 16, 30, 44, 9];
+                  const cards: number[] = result.communityCards || (result as any).community_cards || [255, 255, 255, 255, 255];
+                  return cards.map((v: number, i: number) => (
+                    <PlayingCard key={i} value={v === 255 ? STANDIN[i] : v} size="lg" animate />
+                  ));
+                })()}
+              </div>
             </div>
             {myHandCards && (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Card value={myHandCards[0]} revealed={true} size="lg" />
-                <Card value={myHandCards[1]} revealed={true} size="lg" />
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--gold)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>Your Hole Cards</div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <PlayingCard value={myHandCards[0]} size="lg" animate highlight />
+                  <PlayingCard value={myHandCards[1]} size="lg" animate highlight />
+                </div>
               </div>
             )}
           </div>

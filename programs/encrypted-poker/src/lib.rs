@@ -8,6 +8,7 @@ declare_id!("AxwPZ5ZiuZwrFss1jjFh5zAozYt2EKBZYT9Mw2wN7fye");
 pub const MAX_PLAYERS: usize = 6;
 pub const STARTING_CHIPS: u64 = 2000;
 pub const TIME_BANK_SECONDS: i64 = 30;
+pub const PLAYER_DISC: [u8; 8] = [205, 222, 112, 7, 165, 155, 206, 218];
 
 // ===== Game State Enums =====
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -115,11 +116,13 @@ pub struct Player {
     pub last_reaction_ts: i64,
     pub last_message: [u8; 64],   // On-chain chat state
     pub last_message_ts: i64,
+    pub action_count: u8,         // Increments on every action in a hand
+    pub last_hand: u64,           // Used to reset action_count on new hand
     pub bump: u8,
 }
 
 impl Player {
-    pub const LEN: usize = 8 + 1 + 32 + 32 + 1 + 8 + 8 + 8 + 1 + 1 + 1 + 8 + 32 + 8 + 1 + 8 + 64 + 8 + 1;
+    pub const LEN: usize = 8 + 1 + 32 + 32 + 1 + 8 + 8 + 8 + 1 + 1 + 1 + 8 + 32 + 8 + 1 + 8 + 64 + 8 + 1 + 8 + 1;
 }
 
 #[account]
@@ -263,6 +266,8 @@ pub mod encrypted_poker {
         player.has_acted = false;
         player.time_bank_remaining = TIME_BANK_SECONDS;
         player.joined_at = Clock::get()?.unix_timestamp;
+        player.action_count = 0;
+        player.last_hand = 0;
         player.bump = ctx.bumps.player;
 
         table.current_players += 1;
@@ -288,13 +293,12 @@ pub mod encrypted_poker {
 
         table.hand_number += 1;
         table.phase = GamePhase::PreFlop;
-        table.last_action_ts = Clock::get()?.unix_timestamp;
+        let now = Clock::get()?.unix_timestamp;
+        table.last_action_ts = now;
 
-        // Store Arcium MXE account reference for this game session
-        table.arcium_mxe_account = ctx.accounts.arcium_mxe.key();
+        // Initialize betting state for PreFlop
+        reset_betting_state(table, ctx.remaining_accounts, now);
 
-        // Arcium computation will be initiated via CPI - the encrypted deck
-        // shuffle happens off-chain in MPC nodes, result committed on-chain
         emit!(GameStarted {
             table_id: table.table_id,
             hand_number: table.hand_number,
@@ -448,8 +452,18 @@ pub mod encrypted_poker {
             _ => return Err(PokerError::InvalidAction.into()),
         }
 
+        // Auto-reset action count on new hand
+        if player.last_hand != table.hand_number {
+            player.action_count = 0;
+            player.last_hand = table.hand_number;
+        }
+
+        // Increment action count for this player (ensures unique PDA for next action/street)
+        player.action_count = player.action_count.saturating_add(1);
+
         table.last_action_ts = now;
-        advance_turn(table);
+        table.last_action_ts = now;
+        advance_turn(table, ctx.remaining_accounts);
 
         // Record encrypted action on-chain
         let action = &mut ctx.accounts.encrypted_action;
@@ -474,7 +488,7 @@ pub mod encrypted_poker {
     pub fn deal_community_cards(ctx: Context<DealCards>) -> Result<()> {
         let table = &mut ctx.accounts.table;
 
-        require!(is_betting_complete(table), PokerError::BettingNotComplete);
+        require!(is_betting_complete(table, ctx.remaining_accounts), PokerError::BettingNotComplete);
 
         let new_phase = match table.phase {
             GamePhase::PreFlop => GamePhase::Flop,
@@ -487,7 +501,8 @@ pub mod encrypted_poker {
         table.phase = new_phase.clone();
 
         // Reset betting for new street
-        reset_betting_state(table);
+        let now = Clock::get()?.unix_timestamp;
+        reset_betting_state(table, ctx.remaining_accounts, now);
 
         emit!(StreetAdvanced {
             table_id: table.table_id,
@@ -523,7 +538,7 @@ pub mod encrypted_poker {
     pub fn trigger_showdown(ctx: Context<TriggerShowdown>) -> Result<()> {
         let table = &mut ctx.accounts.table;
         require!(table.phase == GamePhase::River, PokerError::InvalidPhase);
-        require!(is_betting_complete(table), PokerError::BettingNotComplete);
+        require!(is_betting_complete(table, ctx.remaining_accounts), PokerError::BettingNotComplete);
 
         table.phase = GamePhase::Showdown;
 
@@ -542,6 +557,7 @@ pub mod encrypted_poker {
         winner_count: u8,
         payouts: [u64; MAX_PLAYERS],
         winning_hand_category: u8,
+        final_community_cards: Option<[u8; 5]>,
         arcium_proof: [u8; 256],
         proof_hash: [u8; 32],
     ) -> Result<()> {
@@ -555,7 +571,16 @@ pub mod encrypted_poker {
         result.hand_number = table.hand_number;
         result.winner_count = winner_count;
         result.winning_hand_category = winning_hand_category;
-        result.community_cards = table.community_cards;
+        
+        // Use provided final cards, or fall back to whatever is on the table
+        if let Some(cards) = final_community_cards {
+            result.community_cards = cards;
+            // Also update the table for consistency
+            table.community_cards = cards;
+        } else {
+            result.community_cards = table.community_cards;
+        }
+
         result.arcium_proof = arcium_proof;
         result.proof_hash = proof_hash;
         result.timestamp = Clock::get()?.unix_timestamp;
@@ -683,25 +708,89 @@ fn post_blinds(table: &mut Table) -> Result<()> {
     Ok(())
 }
 
-fn is_betting_complete(table: &Table) -> bool {
-    // Betting is complete when all active, non-all-in players have acted
-    // and matched the current bet
+fn is_betting_complete(table: &Table, remaining_accounts: &[AccountInfo]) -> bool {
+    // Count active and not all-in players
+    let mut active_non_all_in = 0;
+    for acc in remaining_accounts {
+        if let Ok(data) = acc.try_borrow_data() {
+            if data.len() >= 100 && data[0..8] == PLAYER_DISC {
+                let is_active = data[98] != 0;
+                let is_all_in = data[99] != 0;
+                if is_active && !is_all_in {
+                    active_non_all_in += 1;
+                }
+            }
+        }
+    }
+
+    // If 1 or 0 players can act, betting is complete for this street
+    if active_non_all_in <= 1 {
+        return true;
+    }
+
     table.players_acted >= table.players_to_act
 }
 
-fn reset_betting_state(table: &mut Table) {
+fn reset_betting_state(table: &mut Table, remaining_accounts: &[AccountInfo], now: i64) {
     table.current_bet = 0;
     table.players_acted = 0;
-    // players_to_act = number of active, non-all-in seated players
-    // We approximate using current_players (folded/all-in are tracked per-action)
-    table.players_to_act = table.current_players;
+    table.last_action_ts = now; // Reset timer for new street
+    
+    // Count active, non-all-in players
+    let mut count = 0;
+    for acc in remaining_accounts {
+        if let Ok(data) = acc.try_borrow_data() {
+            if data.len() >= 100 && data[0..8] == PLAYER_DISC {
+                let is_active = data[98] != 0;
+                let is_all_in = data[99] != 0;
+                if is_active && !is_all_in {
+                    count += 1;
+                }
+            }
+        }
+    }
+    table.players_to_act = count;
+
+    // Set first turn to act (start from dealer + 1)
+    advance_turn(table, remaining_accounts);
 }
 
-fn advance_turn(table: &mut Table) {
-    // Simple round-robin; folded players will naturally be skipped
-    // because their is_active=false will cause the next submit_action to fail
-    // with PlayerInactive before any state is changed.
-    table.current_turn = (table.current_turn + 1) % table.current_players;
+fn advance_turn(table: &mut Table, remaining_accounts: &[AccountInfo]) {
+    // Try to find the next active, non-all-in player
+    // We iterate up to current_players times to avoid infinite loops
+    let mut next_turn = table.current_turn;
+    
+    for _ in 0..table.current_players {
+        next_turn = (next_turn + 1) % table.current_players;
+        
+        // Find player account with this ID among remaining_accounts
+        let next_player_data = remaining_accounts.iter().find_map(|acc| {
+            let data = acc.try_borrow_data().ok()?;
+            // Disc(8) + player_id(1)
+            if data.len() >= 9 && data[8] == next_turn {
+                Some(data)
+            } else {
+                None
+            }
+        });
+
+        if let Some(data) = next_player_data {
+            // is_active: bool at offset 98 (8 + 90)
+            // is_all_in: bool at offset 99 (8 + 91)
+            if data.len() >= 100 {
+                let is_active = data[98] != 0;
+                let is_all_in = data[99] != 0;
+                
+                if is_active && !is_all_in {
+                    table.current_turn = next_turn;
+                    return;
+                }
+            }
+        }
+    }
+    
+    // If no one else can act, set turn to 255 to signal street end
+    table.current_turn = 255;
 }
 
 fn phase_to_u8(phase: &GamePhase) -> u8 {
@@ -800,7 +889,7 @@ pub struct ArciumCallback<'info> {
         init_if_needed,
         payer = payer,
         space = EncryptedHand::LEN,
-        seeds = [b"hand", table.key().as_ref(), payer.key().as_ref()],
+        seeds = [b"hand", table.key().as_ref(), &table.hand_number.to_le_bytes(), player.key().as_ref()],
         bump
     )]
     pub encrypted_hand: Account<'info, EncryptedHand>,
@@ -823,7 +912,7 @@ pub struct SubmitAction<'info> {
         init,
         payer = payer,
         space = EncryptedAction::LEN,
-        seeds = [b"action", table.key().as_ref(), &table.hand_number.to_le_bytes(), &[player.player_id]],
+        seeds = [b"action", table.key().as_ref(), &table.hand_number.to_le_bytes(), &[player.player_id], &[player.action_count]],
         bump
     )]
     pub encrypted_action: Account<'info, EncryptedAction>,

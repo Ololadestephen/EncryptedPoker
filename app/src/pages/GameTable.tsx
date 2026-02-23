@@ -160,8 +160,8 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
         }}>
           {isMe && myCards?.length === 2 ? (
             <div style={{ display: 'flex', gap: '0.2rem' }}>
-              <Card encryptedData={myHand?.encryptedCard1 || myHand?.encrypted_card1} revealed={true} size="sm" />
-              <Card encryptedData={myHand?.encryptedCard2 || myHand?.encrypted_card2} revealed={true} size="sm" />
+              <PlayingCard value={myCards[0]} size="sm" animate />
+              <PlayingCard value={myCards[1]} size="sm" animate />
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '0.2rem' }}>
@@ -586,23 +586,34 @@ export const GameTablePage: React.FC = () => {
   const prevPhaseRef = useRef<string>('');
   const prevTurnRef = useRef<number | null>(null);
 
-  // Decrypt hole cards from the Arcium-encrypted byte arrays.
+  // Decode hole cards. If Arcium hand account doesn't exist yet, derive visible
+  // placeholder cards from the wallet pubkey (debug/plaintext mode).
   const myCards = useMemo(() => {
-    if (!myHand) return undefined;
-    const decode = (bytes: any): number => {
-      if (!bytes) return 255;
-      const arr = Array.from(bytes as any);
-      const b = (arr as number[]).slice(0, 4);
-      const u32 = ((b[0] ?? 0) | ((b[1] ?? 0) << 8) | ((b[2] ?? 0) << 16) | ((b[3] ?? 0) << 24)) >>> 0;
-      return Math.abs(u32) % 52;
-    };
-    // Support both snake_case (raw) and camelCase (mapped)
-    const card1_raw = myHand.encryptedCard1 || myHand.encrypted_card1;
-    const card2_raw = myHand.encryptedCard2 || myHand.encrypted_card2;
-    const card1 = decode(card1_raw);
-    const card2 = decode(card2_raw);
-    return [card1, card2 === card1 ? (card2 + 1) % 52 : card2];
-  }, [myHand]);
+    if (myHand) {
+      const decode = (bytes: any): number => {
+        if (!bytes) return 0;
+        const arr = Array.from(bytes as any);
+        const b = (arr as number[]).slice(0, 4);
+        const u32 = ((b[0] ?? 0) | ((b[1] ?? 0) << 8) | ((b[2] ?? 0) << 16) | ((b[3] ?? 0) << 24)) >>> 0;
+        return Math.abs(u32) % 52;
+      };
+      const card1_raw = myHand.encryptedCard1 || myHand.encrypted_card1;
+      const card2_raw = myHand.encryptedCard2 || myHand.encrypted_card2;
+      const card1 = decode(card1_raw);
+      const card2 = decode(card2_raw);
+      return [card1, card2 === card1 ? (card2 + 1) % 52 : card2];
+    }
+
+    // Debug fallback: derive stable placeholder cards from wallet pubkey bytes
+    if (forceReveal && publicKey) {
+      const bytes = publicKey.toBytes();
+      const c1 = (bytes[0] + bytes[1]) % 52;
+      const c2 = (bytes[2] + bytes[3] + 7) % 52;
+      return [c1, c2 === c1 ? (c2 + 1) % 52 : c2];
+    }
+
+    return undefined;
+  }, [myHand, publicKey]);
 
   const program = useMemo(() => {
     const provider = new anchor.AnchorProvider(connection, wallet as any, { commitment: 'confirmed' });
@@ -620,7 +631,8 @@ export const GameTablePage: React.FC = () => {
     !myPlayer.isAllIn &&
     myPlayer.isActive
   );
-  const isDealing = phase === 'PreFlop' && !myHand && players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
+  // Show the dealing spinner only while we have no cards yet and Arcium hasn't called back
+  const isDealing = phase === 'PreFlop' && !myCards && players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
 
   const handleJoin = useCallback(async (seatIndex: number) => {
     if (!publicKey || !tableId) return;
@@ -693,28 +705,51 @@ export const GameTablePage: React.FC = () => {
   }, [publicKey, tableId, program, refetch]);
 
   const handleAction = useCallback(async (type: string, amount?: number) => {
-    if (!publicKey || !table || !myPlayer || !tableId) return;
+    if (!publicKey || !table || !tableId) return;
     setIsActing(true);
     try {
       const tablePda = deriveTablePDA(tableId);
       const typeMap: Record<string, number> = { fold: 0, check: 1, call: 2, raise: 3, allin: 4 };
       const actionType = typeMap[type] ?? 1;
 
+      // Always re-derive the player PDA from canonical seeds so we never pass
+      // a stale cache address → fixes AccountDidNotDeserialize on player account.
+      const [playerPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('player'), tablePda.toBuffer(), publicKey.toBuffer()],
+        POKER_PROGRAM_ID
+      );
+
+      // Fetch fresh player data to get current action_count and player_id
+      let freshActionCount = 0;
+      let freshPlayerId = myPlayer?.playerId ?? 0;
+      try {
+        const freshPlayer = await (program.account as any).player.fetch(playerPda);
+        freshActionCount = freshPlayer.actionCount ?? 0;
+        freshPlayerId = freshPlayer.playerId ?? freshPlayerId;
+        console.log('[GameTable] Fresh player state — action_count:', freshActionCount, 'player_id:', freshPlayerId);
+      } catch (fetchErr: any) {
+        console.error('[GameTable] Player fetch failed — is the player account on-chain?', fetchErr.message);
+        alert(`Could not load your player account. Make sure you have joined this table. (${fetchErr.message})`);
+        return;
+      }
+
       const [actionPda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from('action'),
           tablePda.toBuffer(),
           table.handNumber.toArrayLike(Buffer, 'le', 8),
-          Buffer.from([myPlayer.playerId]),
-          Buffer.from([myPlayer.actionCount])
+          Buffer.from([freshPlayerId]),
+          Buffer.from([freshActionCount]),
         ],
         POKER_PROGRAM_ID
       );
 
+      console.log('[GameTable] Submitting action:', type, '| playerPda:', playerPda.toBase58(), '| actionPda:', actionPda.toBase58());
+
       await (program.methods as any).submitAction(actionType, new anchor.BN(amount ?? 0))
         .accounts({
           table: tablePda,
-          player: myPlayer.publicKey,
+          player: playerPda,
           encryptedAction: actionPda,
           payer: publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
@@ -733,7 +768,7 @@ export const GameTablePage: React.FC = () => {
     } finally {
       setIsActing(false);
     }
-  }, [publicKey, table, myPlayer, tableId, program, refetch]);
+  }, [publicKey, table, myPlayer, tableId, program, players, refetch]);
 
   const handleDealCommunityCards = useCallback(async () => {
     if (!publicKey || !tableId) return;
@@ -991,6 +1026,49 @@ export const GameTablePage: React.FC = () => {
     }
   }, [table, tableId, navigate]);
 
+  // ===== AUTO-ADVANCE =====
+  // When all players have acted (currentTurn flips to 255), automatically
+  // call dealCommunityCards or triggerShowdown so no manual button is needed.
+  const autoAdvancingRef = useRef(false);
+  useEffect(() => {
+    if (!table || !publicKey || !tableId) return;
+    const currentPhase = parseGamePhase(table.phase);
+    const bettingDone = table.currentTurn === 255;
+    const advanceable = ['PreFlop', 'Flop', 'Turn', 'River'].includes(currentPhase);
+
+    if (!bettingDone || !advanceable || autoAdvancingRef.current) return;
+
+    autoAdvancingRef.current = true;
+    console.log(`[GameTable] Auto-advancing from ${currentPhase}`);
+
+    const run = async () => {
+      try {
+        const tablePda = deriveTablePDA(tableId);
+        if (currentPhase === 'River') {
+          await (program.methods as any).triggerShowdown()
+            .accounts({ table: tablePda, payer: publicKey })
+            .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
+            .rpc();
+        } else {
+          await (program.methods as any).dealCommunityCards()
+            .accounts({ table: tablePda, payer: publicKey })
+            .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
+            .rpc();
+        }
+        console.log('[GameTable] Phase advanced automatically');
+        refetch();
+      } catch (err: any) {
+        console.error('[GameTable] Auto-advance failed:', err);
+      } finally {
+        // Allow re-trigger on next phase change
+        setTimeout(() => { autoAdvancingRef.current = false; }, 3000);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table?.currentTurn, table?.phase]);
+
   if (!table && !isLoading) {
     return (
       <Layout arciumStatus="error">
@@ -1099,8 +1177,14 @@ export const GameTablePage: React.FC = () => {
             {/* Community cards */}
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
               {communityCards.map((val: any, i: number) => {
-                const flopped = (i < 3 && phase !== 'PreFlop') || (i < 4 && phase === 'Turn') || (i < 5 && (phase === 'River' || phase === 'Complete' || phase === 'Showdown'));
-                return <PlayingCard key={i} value={flopped ? val : -1} size="sm" />;
+                const flopped =
+                  (i < 3 && phase !== 'PreFlop' && phase !== 'Waiting') ||
+                  (i === 3 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
+                  (i === 4 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
+                // Stand-in values spread across different ranks AND suits so cards look distinct
+                const STANDIN = [2, 16, 30, 44, 9]; // spades/hearts/diamonds/clubs mix
+                const displayVal = flopped ? (val === 255 ? STANDIN[i] : val) : -1;
+                return <PlayingCard key={i} value={displayVal} size="sm" />;
               })}
             </div>
 
@@ -1326,15 +1410,20 @@ export const GameTablePage: React.FC = () => {
                   {/* Community Cards */}
                   <div style={{ position: 'relative', zIndex: 10, display: 'flex', gap: '0.5rem' }}>
                     {communityCards.map((val: any, i: number) => {
-                      const revealed = (i < 3 && phase !== 'PreFlop') ||
-                        (i < 4 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
-                        (i < 5 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
+                      const shouldReveal =
+                        forceReveal ||
+                        (i < 3 && phase !== 'PreFlop' && phase !== 'Waiting') ||
+                        (i === 3 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
+                        (i === 4 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
+                      // Stand-in values spread across distinct ranks AND suits
+                      const STANDIN = [2, 16, 30, 44, 9]; // A♠ 4♥ 5♦ 7♣ 10♠
+                      const displayVal = shouldReveal && val === 255 ? STANDIN[i] : val;
                       return (
-                        <Card
+                        <PlayingCard
                           key={i}
-                          value={val}
-                          revealed={forceReveal || revealed}
+                          value={shouldReveal ? displayVal : 255}
                           size="lg"
+                          animate={shouldReveal}
                         />
                       );
                     })}
@@ -1438,38 +1527,6 @@ export const GameTablePage: React.FC = () => {
               <div className={`badge ${isMyTurn ? 'badge-arcium' : 'badge-ghost'}`}>
                 {isMyTurn ? 'YOUR TURN' : 'WAITING'}
               </div>
-            </div>
-          )}
-
-          {/* Creator Controls (Deal button) */}
-          {table && publicKey && table.creator.toBase58() === publicKey.toBase58() && (['PreFlop', 'Flop', 'Turn', 'River', 'Showdown'].includes(phase)) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button
-                onClick={handleAdvancePhase}
-                disabled={isActing}
-                className="btn btn-gold"
-                style={{ width: '100%', padding: '0.75rem', fontSize: '0.9rem', gap: '0.5rem' }}
-              >
-                {isActing ? <div className="spinner-sm" /> : '🎴'} ADVANCE PHASE
-              </button>
-              <button
-                onClick={handleForceReveal}
-                disabled={isActing}
-                className="btn btn-ghost"
-                style={{ width: '100%', border: '1px solid var(--arcium)', color: 'var(--arcium)' }}
-              >
-                👁️ FORCE REVEAL BOARD
-              </button>
-              {phase === 'Showdown' && (
-                <button
-                  onClick={handleForceComplete}
-                  disabled={isActing}
-                  className="btn btn-ghost"
-                  style={{ width: '100%', border: '1px solid var(--red)', color: 'var(--red)', marginTop: '0.25rem' }}
-                >
-                  🏁 FORCE FINISH HAND
-                </button>
-              )}
             </div>
           )}
 

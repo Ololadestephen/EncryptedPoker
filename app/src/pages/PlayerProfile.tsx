@@ -180,6 +180,7 @@ export const PlayerProfilePage: React.FC = () => {
   const [gameHistory, setGameHistory] = useState<any[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const walletStr = walletParam || publicKey?.toString();
   const isMe = !!(publicKey && (publicKey.toString() === walletStr));
@@ -200,61 +201,91 @@ export const PlayerProfilePage: React.FC = () => {
     setHistoryError(null);
     try {
       const pubkey = new PublicKey(walletStr);
+      const walletBase58 = pubkey.toBase58();
 
       // 1. SOL balance
       const bal = await connection.getBalance(pubkey);
       setBalance(bal / LAMPORTS_PER_SOL);
 
-      // 2. Active tables (Player PDAs where this wallet is seated)
-      const playerAccounts = await (program.account as any).player.all([
-        { memcmp: { offset: 8 + 1, bytes: pubkey.toBase58() } }
-      ]);
-      const tableData = await Promise.all(playerAccounts.map(async (p: any) => {
-        try {
-          const tableAcc = await (program.account as any).table.fetch(p.account.table);
-          return {
-            id: p.account.table.toBase58(),
-            name: bytesToString(tableAcc.name) || `Table ...${p.account.table.toBase58().slice(-6)}`,
-            chips: p.account.chipCount.toNumber(),
-          };
-        } catch { return null; }
-      }));
+      // 2. Active tables — Player PDAs seeded by [b"player", table, wallet]
+      //    wallet field is at offset 9 (disc=8, player_id=1)
+      let playerAccounts: any[] = [];
+      try {
+        playerAccounts = await (program.account as any).player.all([
+          { memcmp: { offset: 9, bytes: walletBase58 } },
+        ]);
+      } catch (e) {
+        console.warn('[Profile] Player fetch failed:', e);
+      }
+      const tableData = await Promise.all(
+        playerAccounts.map(async (p: any) => {
+          try {
+            const tableAcc = await (program.account as any).table.fetch(p.account.table);
+            return {
+              id: p.account.table.toBase58(),
+              name: bytesToString(tableAcc.name) || `Table ...${p.account.table.toBase58().slice(-6)}`,
+              chips: p.account.chipCount.toNumber(),
+            };
+          } catch { return null; }
+        })
+      );
       setActiveTables(tableData.filter(Boolean));
 
-      // 3. Game history — fetch all GameResult PDAs, filter by wallet in winners[]
-      const allResults = await (program.account as any).gameResult.all();
+      // 3. Game history — fetch raw account bytes and decode each one individually
+      //    so a single malformed account does not crash the whole load.
+      // Use Anchor coder to get the correct 8-byte discriminator for GameResult
+      // This avoids hardcoding bytes that could be wrong if the account name differs.
+      const gameResultDiscriminator = (program.coder.accounts as any).accountDiscriminator('gameResult')
+        ?? Buffer.from(anchor.utils.sha256.hash('account:GameResult').slice(0, 16), 'hex').slice(0, 8);
+      const gameResultDiscBase58 = anchor.utils.bytes.bs58.encode(gameResultDiscriminator);
+
+      let rawResultAccounts: { pubkey: PublicKey; account: { data: Buffer } }[] = [];
+      try {
+        const fetched = await connection.getProgramAccounts(program.programId, {
+          filters: [{ memcmp: { offset: 0, bytes: gameResultDiscBase58 } }],
+        });
+        rawResultAccounts = fetched as any;
+      } catch (e) {
+        console.warn('[Profile] GameResult fetch failed:', e);
+      }
+
       const myGames: any[] = [];
+      for (const raw of rawResultAccounts) {
+        let acc: any;
+        try {
+          acc = program.coder.accounts.decode('gameResult', raw.account.data);
+        } catch (decodeErr) {
+          // Skip accounts that don't match the current struct layout (stale / wrong version)
+          console.warn('[Profile] Skipping undecodable GameResult:', raw.pubkey.toBase58());
+          continue;
+        }
 
-      for (const r of allResults) {
-        const acc = r.account;
-        const walletBase58 = pubkey.toBase58();
-
-        // Check winners (up to winner_count entries)
+        // Determine if this wallet is a winner or participant
         const winnerCount: number = acc.winnerCount ?? 0;
         const winnerAddresses: string[] = (acc.winners as PublicKey[])
-          .slice(0, winnerCount)
+          .slice(0, Math.min(winnerCount, 6))
           .map((w: PublicKey) => w.toBase58());
         const isWinner = winnerAddresses.includes(walletBase58);
 
-        // Check participants (up to participant_count entries) — new field
         const participantCount: number = acc.participantCount ?? 0;
         const participantAddresses: string[] = acc.participants
-          ? (acc.participants as PublicKey[]).slice(0, participantCount).map((p: PublicKey) => p.toBase58())
-          : winnerAddresses; // fallback: old accounts without participants field
+          ? (acc.participants as PublicKey[])
+            .slice(0, Math.min(participantCount, 6))
+            .map((p: PublicKey) => p.toBase58())
+          : winnerAddresses;
 
         const isParticipant = isWinner || participantAddresses.includes(walletBase58);
-        if (!isParticipant) continue; // not involved in this hand
+        if (!isParticipant) continue;
 
         const myWinnerIdx = winnerAddresses.indexOf(walletBase58);
         const payout = isWinner ? (acc.payouts[myWinnerIdx]?.toNumber() ?? 0) : 0;
+        const chipDelta = isWinner
+          ? payout
+          : -(acc.payouts[0]?.toNumber() ?? 0) / Math.max(winnerCount, 1);
+        const timestamp = acc.timestamp?.toNumber
+          ? acc.timestamp.toNumber() * 1000
+          : Date.now();
 
-        // For losses, chipDelta is negative. We don't have exact loss amount on-chain
-        // (pot was split to winners), so show as negative payout of the winner's pot share
-        // as a proxy. If we can't compute, mark as -bigBlind.
-        const chipDelta = isWinner ? payout : -(acc.payouts[0]?.toNumber() ?? 0) / Math.max(winnerCount, 1);
-        const timestamp = acc.timestamp?.toNumber ? acc.timestamp.toNumber() * 1000 : Date.now();
-
-        // Fetch the table name
         let tableName = '';
         try {
           const tableAcc = await (program.account as any).table.fetch(acc.table);
@@ -273,9 +304,9 @@ export const PlayerProfilePage: React.FC = () => {
         });
       }
 
-      // Sort by most recent first
       myGames.sort((a, b) => b.timestamp - a.timestamp);
       setGameHistory(myGames);
+      setLastUpdated(new Date());
 
     } catch (err: any) {
       console.error('[Profile] Error loading data:', err);
@@ -286,6 +317,14 @@ export const PlayerProfilePage: React.FC = () => {
   }, [walletStr, connection, program]);
 
   useEffect(() => { loadProfileData(); }, [loadProfileData]);
+
+  // Auto-refresh every 15 seconds to reflect live on-chain state
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (walletStr) loadProfileData();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [walletStr, loadProfileData]);
 
   // ===== Computed stats from real history =====
   const stats = useMemo(() => {
@@ -401,6 +440,11 @@ export const PlayerProfilePage: React.FC = () => {
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.35)', marginBottom: '0.75rem', wordBreak: 'break-all' }}>
                 {walletStr}
               </div>
+              {lastUpdated && (
+                <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'var(--font-mono)' }}>
+                  updated {lastUpdated.toLocaleTimeString()}
+                </div>
+              )}
             </div>
 
             <button className="btn btn-ghost btn-sm" onClick={loadProfileData}>↻ Reload</button>
