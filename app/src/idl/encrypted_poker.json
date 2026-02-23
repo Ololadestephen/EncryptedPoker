@@ -121,8 +121,11 @@
           "writable": true
         },
         {
-          "name": "payer",
-          "signer": true
+          "name": "creator",
+          "signer": true,
+          "relations": [
+            "table"
+          ]
         }
       ],
       "args": []
@@ -510,9 +513,12 @@
           "name": "arcium_mxe"
         },
         {
-          "name": "payer",
+          "name": "creator",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "table"
+          ]
         },
         {
           "name": "system_program",
@@ -753,8 +759,11 @@
           "writable": true
         },
         {
-          "name": "payer",
-          "signer": true
+          "name": "creator",
+          "signer": true,
+          "relations": [
+            "table"
+          ]
         }
       ],
       "args": []

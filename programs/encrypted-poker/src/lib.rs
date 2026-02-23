@@ -895,28 +895,28 @@ pub struct SubmitAction<'info> {
 
 #[derive(Accounts)]
 pub struct DealCards<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = creator)]
     pub table: Account<'info, Table>,
 
-    pub payer: Signer<'info>,
+    pub creator: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct TriggerShowdown<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = creator)]
     pub table: Account<'info, Table>,
 
-    pub payer: Signer<'info>,
+    pub creator: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct ShowdownResult<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = creator)]
     pub table: Account<'info, Table>,
 
     #[account(
         init,
-        payer = payer,
+        payer = creator,
         space = GameResult::LEN,
         seeds = [b"result", table.key().as_ref(), &table.hand_number.to_le_bytes()],
         bump
@@ -927,7 +927,7 @@ pub struct ShowdownResult<'info> {
     pub arcium_mxe: UncheckedAccount<'info>,
 
     #[account(mut)]
-    pub payer: Signer<'info>,
+    pub creator: Signer<'info>,
 
     pub system_program: Program<'info, System>,
     // Seated Player PDAs are passed as remaining_accounts for winner resolution

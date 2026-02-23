@@ -672,7 +672,7 @@ export const GameTablePage: React.FC = () => {
         table: tablePda,
         gameResult: resultPda,
         arciumMxe: ARCIUM_MXE_PUBKEY,
-        payer: publicKey,
+        creator: publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
@@ -837,7 +837,7 @@ export const GameTablePage: React.FC = () => {
       await (program.methods as any).dealCommunityCards()
         .accounts({
           table: tablePda,
-          payer: publicKey,
+          creator: publicKey,
         })
         .remainingAccounts(players.map(p => ({
           pubkey: p.publicKey,
@@ -933,7 +933,7 @@ export const GameTablePage: React.FC = () => {
           table: tablePda,
           gameResult: resultPda,
           arciumMxe: ARCIUM_MXE_PUBKEY,
-          payer: publicKey,
+          creator: publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .remainingAccounts(players.map(p => ({
@@ -961,7 +961,7 @@ export const GameTablePage: React.FC = () => {
       await (program.methods as any).triggerShowdown()
         .accounts({
           table: tablePda,
-          payer: publicKey,
+          creator: publicKey,
         })
         .remainingAccounts(players.map(p => ({
           pubkey: p.publicKey,
@@ -1027,7 +1027,9 @@ export const GameTablePage: React.FC = () => {
     const activePlayersDuringHand = players.filter(p => p.isActive);
     const isOnlyOneLeft = activePlayersDuringHand.length === 1 && players.length > 1;
 
-    if (!isOnlyOneLeft) return;
+    // Only the creator triggers the auto-win sequence on-chain
+    const isCreator = publicKey.toBase58() === table.creator.toBase58();
+    if (!isOnlyOneLeft || !isCreator) return;
 
     autoWinRef.current = currentPhase;
     console.log('[GameTable:AutoWin] Only 1 player left — fast-forwarding to showdown');
@@ -1048,7 +1050,7 @@ export const GameTablePage: React.FC = () => {
 
         for (const fromPhase of orderedPhases) {
           await (program.methods as any).dealCommunityCards()
-            .accounts({ table: tablePda, payer: publicKey })
+            .accounts({ table: tablePda, creator: publicKey })
             .remainingAccounts(playerAccs)
             .rpc();
           await oracleRevealCommunityCards(fromPhase, tablePda, handNum);
@@ -1056,7 +1058,7 @@ export const GameTablePage: React.FC = () => {
         }
 
         await (program.methods as any).triggerShowdown()
-          .accounts({ table: tablePda, payer: publicKey })
+          .accounts({ table: tablePda, creator: publicKey })
           .remainingAccounts(playerAccs)
           .rpc();
         await new Promise(r => setTimeout(r, 800));
@@ -1099,7 +1101,9 @@ export const GameTablePage: React.FC = () => {
       (table.playersToAct > 0 && table.playersActed >= table.playersToAct);
     const bettingDone = allInOnly || normalBettingDone;
 
-    if (!bettingDone) return;
+    // Only the creator triggers the next street advance on-chain
+    const isCreator = publicKey.toBase58() === table.creator.toBase58();
+    if (!bettingDone || !isCreator) return;
 
     autoAdvancingRef.current = currentPhase;
     console.log(`[GameTable:AutoAdvance] Street ${currentPhase} done — advancing (allInOnly=${allInOnly}, acted=${table.playersActed}/${table.playersToAct})`);
@@ -1112,7 +1116,7 @@ export const GameTablePage: React.FC = () => {
 
         if (currentPhase === 'River') {
           await (program.methods as any).triggerShowdown()
-            .accounts({ table: tablePda, payer: publicKey })
+            .accounts({ table: tablePda, creator: publicKey })
             .remainingAccounts(playerAccs)
             .rpc();
 
@@ -1126,7 +1130,7 @@ export const GameTablePage: React.FC = () => {
           }
         } else {
           await (program.methods as any).dealCommunityCards()
-            .accounts({ table: tablePda, payer: publicKey })
+            .accounts({ table: tablePda, creator: publicKey })
             .remainingAccounts(playerAccs)
             .rpc();
 
