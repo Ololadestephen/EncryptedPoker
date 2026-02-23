@@ -462,7 +462,6 @@ pub mod encrypted_poker {
         player.action_count = player.action_count.saturating_add(1);
 
         table.last_action_ts = now;
-        table.last_action_ts = now;
         advance_turn(table, ctx.remaining_accounts);
 
         // Record encrypted action on-chain
@@ -591,16 +590,11 @@ pub mod encrypted_poker {
         // in player_id order (0, 1, 2...).
         let mut participant_count: u8 = 0;
         for acc_info in ctx.remaining_accounts.iter() {
-            let data = acc_info.try_borrow_data()?;
-            if data.len() < Player::LEN - 8 + 8 {
-                continue;
-            }
-            // wallet is at offset 9 (after discriminator + player_id)
-            let wallet_bytes: [u8; 32] = data[9..41].try_into().unwrap_or_default();
-            let wallet = Pubkey::new_from_array(wallet_bytes);
-            if participant_count < MAX_PLAYERS as u8 {
-                result.participants[participant_count as usize] = wallet;
-                participant_count += 1;
+            if let Ok(player) = Player::try_deserialize(&mut &acc_info.data.borrow()[..]) {
+                if participant_count < MAX_PLAYERS as u8 {
+                    result.participants[participant_count as usize] = player.wallet;
+                    participant_count += 1;
+                }
             }
         }
         result.participant_count = participant_count;
@@ -612,15 +606,11 @@ pub mod encrypted_poker {
             // Search remaining_accounts for the Player whose player_id matches
             let mut resolved = Pubkey::default();
             for acc_info in ctx.remaining_accounts.iter() {
-                let data = acc_info.try_borrow_data()?;
-                if data.len() < Player::LEN - 8 + 8 {
-                    continue;
-                }
-                let pid = data[8]; // player_id: u8
-                if pid == winner_player_id {
-                    let wallet_bytes: [u8; 32] = data[9..41].try_into().unwrap_or_default();
-                    resolved = Pubkey::new_from_array(wallet_bytes);
-                    break;
+                if let Ok(player) = Player::try_deserialize(&mut &acc_info.data.borrow()[..]) {
+                    if player.player_id == winner_player_id {
+                        resolved = player.wallet;
+                        break;
+                    }
                 }
             }
             result.winners[i] = resolved;
@@ -712,13 +702,9 @@ fn is_betting_complete(table: &Table, remaining_accounts: &[AccountInfo]) -> boo
     // Count active and not all-in players
     let mut active_non_all_in = 0;
     for acc in remaining_accounts {
-        if let Ok(data) = acc.try_borrow_data() {
-            if data.len() >= 100 && data[0..8] == PLAYER_DISC {
-                let is_active = data[98] != 0;
-                let is_all_in = data[99] != 0;
-                if is_active && !is_all_in {
-                    active_non_all_in += 1;
-                }
+        if let Ok(player) = Player::try_deserialize(&mut &acc.data.borrow()[..]) {
+            if player.is_active && !player.is_all_in {
+                active_non_all_in += 1;
             }
         }
     }
@@ -739,13 +725,9 @@ fn reset_betting_state(table: &mut Table, remaining_accounts: &[AccountInfo], no
     // Count active, non-all-in players
     let mut count = 0;
     for acc in remaining_accounts {
-        if let Ok(data) = acc.try_borrow_data() {
-            if data.len() >= 100 && data[0..8] == PLAYER_DISC {
-                let is_active = data[98] != 0;
-                let is_all_in = data[99] != 0;
-                if is_active && !is_all_in {
-                    count += 1;
-                }
+        if let Ok(player) = Player::try_deserialize(&mut &acc.data.borrow()[..]) {
+            if player.is_active && !player.is_all_in {
+                count += 1;
             }
         }
     }
@@ -764,26 +746,14 @@ fn advance_turn(table: &mut Table, remaining_accounts: &[AccountInfo]) {
         next_turn = (next_turn + 1) % table.current_players;
         
         // Find player account with this ID among remaining_accounts
-        let next_player_data = remaining_accounts.iter().find_map(|acc| {
-            let data = acc.try_borrow_data().ok()?;
-            // Disc(8) + player_id(1)
-            if data.len() >= 9 && data[8] == next_turn {
-                Some(data)
-            } else {
-                None
-            }
-        });
-
-        if let Some(data) = next_player_data {
-            // is_active: bool at offset 98 (8 + 90)
-            // is_all_in: bool at offset 99 (8 + 91)
-            if data.len() >= 100 {
-                let is_active = data[98] != 0;
-                let is_all_in = data[99] != 0;
-                
-                if is_active && !is_all_in {
-                    table.current_turn = next_turn;
-                    return;
+        for acc in remaining_accounts {
+            if let Ok(player) = Player::try_deserialize(&mut &acc.data.borrow()[..]) {
+                if player.player_id == next_turn {
+                    if player.is_active && !player.is_all_in {
+                        table.current_turn = next_turn;
+                        return;
+                    }
+                    break; // Found the right player ID, but they're inactive/all-in
                 }
             }
         }
@@ -805,13 +775,13 @@ fn phase_to_u8(phase: &GamePhase) -> u8 {
     }
 }
 
-fn verify_arcium_callback(mxe: &AccountInfo) -> Result<()> {
+fn verify_arcium_callback(_mxe: &AccountInfo) -> Result<()> {
     // Verify the MXE account is owned by Arcium's program
     // Mock for now since arcium_sdk::ID is unavailable
     Ok(())
 }
 
-fn verify_arcium_proof(proof: &[u8; 128], commitment: &[u8; 32]) -> Result<()> {
+fn verify_arcium_proof(_proof: &[u8; 128], _commitment: &[u8; 32]) -> Result<()> {
     // Mock proof verification since the original arcium_sdk is unavailable
     Ok(())
 }

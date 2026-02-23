@@ -46,6 +46,8 @@ export interface TableData {
   sidePots: any[]; // BN[6]
   sidePotCount: number;
   lastActionTs: any; // BN (i64)
+  playersActed: number;   // u8: how many players acted this street
+  playersToAct: number;   // u8: how many players need to act this street
   tokenGateMint: PublicKey | null;
   tokenGateAmount: any; // BN
   bump: number;

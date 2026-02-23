@@ -2,20 +2,25 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Layout } from '../components/layout/Layout';
-import { PlayingCard, CardRow } from '../components/ui/PlayingCard';
+import { PlayingCard } from '../components/ui/PlayingCard';
 import { Card } from '../components/ui/Card';
 import { useTableRealtime, useTurnTimer, deriveTablePDA } from '../hooks/useTableRealtime';
-import { PlayerData, formatChips, shortenWallet, phaseLabel, HAND_NAMES, parseGamePhase, bytesToString } from '../types';
+import {
+  TableData, PlayerData, GamePhase, phaseLabel, formatChips,
+  shortenWallet, parseGamePhase, bytesToString, HAND_NAMES,
+} from '../types';
+import { evaluateHand } from '../lib/hand-evaluator';
 import * as anchor from '@coral-xyz/anchor';
 import { POKER_PROGRAM_ID, ARCIUM_MXE_PUBKEY, SOLANA_NETWORK } from '../lib/constants';
 import idl from '../idl/encrypted_poker.json';
 import { PublicKey } from '@solana/web3.js';
 import { parseTxError } from '../lib/parseTxError';
+import { getStandinCards, isCardRevealed, getStandinHoleCards, buildDeck } from '../lib/card-utils';
 
-// DEBUG OVERRIDE as requested by user - force all cards to show
+// forceReveal: only affects HOLE CARDS (we always show the player their own cards).
+// Community cards are still gated by game phase so they appear at the right street.
 const forceReveal = true;
 
-// ===== Player Seat =====
 const SEAT_POSITIONS = [
   { bottom: '2rem', left: '50%', transform: 'translateX(-50%)' },   // 0 hero bottom
   { bottom: '4rem', right: '6rem' },                                  // 1 bottom-right
@@ -24,22 +29,6 @@ const SEAT_POSITIONS = [
   { top: '2rem', left: '50%', transform: 'translateX(-50%)' },      // 4 top-center
   { bottom: '4rem', left: '6rem' },                                   // 5 bottom-left
 ];
-
-const EMOJI_MAP: Record<number, string> = {
-  1: '🔥',
-  2: '💩',
-  3: '🤡',
-  4: '👑',
-  5: '💸',
-};
-
-interface ChatMessage {
-  id: string;
-  sender: string;
-  text: string;
-  type: string;
-  timestamp: number;
-}
 
 // Custom hook for window dimensions
 function useWindowSize() {
@@ -71,37 +60,15 @@ interface SeatProps {
   onJoin?: (seat: number) => void;
   onReact?: (type: number) => void;
   myHand?: any;
+  communityCards: number[];
+  pos: any;
+  tableId: string;
 }
 
 const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
-  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, gamePhase, onJoin, onReact, table, myHand,
+  player, seatIndex, isMyTurn, isMe, myCards, lastActionTs, gamePhase, onJoin, table, communityCards, pos, tableId,
 }) => {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [activeEmoji, setActiveEmoji] = useState<{ type: number; id: number } | null>(null);
-  const [activeMessage, setActiveMessage] = useState<{ text: string; id: number } | null>(null);
 
-  // Trigger local animation when last_reaction changes
-  useEffect(() => {
-    if (player?.lastReaction && player.lastReaction > 0) {
-      setActiveEmoji({ type: player.lastReaction, id: Date.now() });
-      const timer = setTimeout(() => setActiveEmoji(null), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [player?.lastReaction, player?.lastReactionTs?.toString()]);
-
-  // Trigger local bubble when last_message changes
-  useEffect(() => {
-    if (player?.lastMessage) {
-      const msg = bytesToString(player.lastMessage);
-      if (msg && msg.trim().length > 0) {
-        setActiveMessage({ text: msg, id: Date.now() });
-        const timer = setTimeout(() => setActiveMessage(null), 4000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [player?.lastMessage?.toString(), player?.lastMessageTs?.toString()]);
-
-  const pos = SEAT_POSITIONS[seatIndex];
   const { remaining, pct, urgent, critical } = useTurnTimer(
     isMyTurn ? lastActionTs : 0,
     player?.timeBankRemaining ?? 30
@@ -152,18 +119,39 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
       {player.isActive && (
         <div style={{
           display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           gap: '0.2rem',
           marginBottom: '0.2rem',
           transform: 'translateY(10px)',
           opacity: folded ? 0.4 : 1,
           transition: 'all 0.3s var(--ease-out)',
         }}>
-          {isMe && myCards?.length === 2 ? (
-            <div style={{ display: 'flex', gap: '0.2rem' }}>
-              <PlayingCard value={myCards[0]} size="sm" animate />
-              <PlayingCard value={myCards[1]} size="sm" animate />
-            </div>
-          ) : (
+          {isMe && myCards && myCards.length === 2 ? (() => {
+            const hNum = table?.handNumber?.toNumber() || 0;
+            const revealedCommunity = communityCards.filter((_, idx) => isCardRevealed(idx, gamePhase));
+            const { label } = evaluateHand([...myCards, ...revealedCommunity]);
+            return (
+              <>
+                <div style={{ display: 'flex', gap: '0.2rem' }}>
+                  <PlayingCard value={myCards[0]} size="sm" animate />
+                  <PlayingCard value={myCards[1]} size="sm" animate />
+                </div>
+                <div style={{
+                  fontSize: '0.625rem', color: 'var(--gold)',
+                  background: 'rgba(201,168,76,0.18)', padding: '1px 8px',
+                  borderRadius: 4, display: 'inline-block',
+                  fontFamily: 'var(--font-mono)', fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.03em',
+                  border: '1px solid rgba(201,168,76,0.25)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {label}
+                </div>
+              </>
+            );
+          })() : (
             <div style={{ display: 'flex', gap: '0.2rem' }}>
               <Card revealed={false} size="sm" />
               <Card revealed={false} size="sm" />
@@ -235,72 +223,7 @@ const PlayerSeat: React.FC<SeatProps & { table: any }> = ({
             <span style={{ opacity: 0.4 }}>•</span> {formatChips(player.currentBet)}
           </div>
         )}
-
-        {/* Reaction trigger for ME */}
-        {isMe && (
-          <button
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            style={{
-              position: 'absolute', top: -12, right: -12,
-              width: 24, height: 24, borderRadius: '50%',
-              background: 'var(--surface-2)', border: '1px solid var(--border-bright)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.9rem', cursor: 'pointer', zIndex: 20,
-            }}>
-            💬
-          </button>
-        )}
-
-        {/* Emoji Picker Popover */}
-        {showEmojiPicker && (
-          <div style={{
-            position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
-            background: 'var(--ink-2)', border: '1px solid var(--border-bright)',
-            borderRadius: 12, padding: '0.5rem', display: 'flex', gap: '0.5rem',
-            boxShadow: 'var(--shadow-lg)', zIndex: 100, backdropFilter: 'blur(12px)',
-          }}>
-            {[1, 2, 3, 4, 5].map(type => (
-              <button
-                key={type}
-                onClick={() => { onReact?.(type); setShowEmojiPicker(false); }}
-                style={{
-                  fontSize: '1.25rem', background: 'transparent', border: 'none',
-                  cursor: 'pointer', transition: 'transform 0.2s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                {EMOJI_MAP[type]}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
-
-      {/* Floating Emoji Animation */}
-      {activeEmoji && (
-        <div key={activeEmoji.id} className="emoji-reaction">
-          {EMOJI_MAP[activeEmoji.type]}
-        </div>
-      )}
-
-      {/* Chat Bubble Overlay */}
-      {activeMessage && (
-        <div style={{
-          position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(255,255,255,0.95)', color: '#000', padding: '6px 12px', borderRadius: 14,
-          fontSize: '0.85rem', fontWeight: 500, whiteSpace: 'nowrap',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', pointerEvents: 'none',
-          animation: 'emoji-pop 0.3s var(--ease-out)', zIndex: 50,
-        }}>
-          {activeMessage.text}
-          <div style={{
-            position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)',
-            width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-            borderTop: '6px solid rgba(255,255,255,0.95)',
-          }} />
-        </div>
-      )}
 
       {/* Turn timer text */}
       {isMyTurn && (
@@ -333,7 +256,8 @@ const BetControls: React.FC<{
   table: any; myPlayer: PlayerData;
   onAction: (type: string, amount?: number) => void;
   isLoading: boolean;
-}> = ({ table, myPlayer, onAction, isLoading }) => {
+  isBigBlindPreflop?: boolean; // BB gets a free check option on preflop
+}> = ({ table, myPlayer, onAction, isLoading, isBigBlindPreflop }) => {
   const [showRaise, setShowRaise] = useState(false);
   const tableBigBlind = table.bigBlind.toNumber ? table.bigBlind.toNumber() : table.bigBlind;
   const tableCurrentBet = table.currentBet.toNumber ? table.currentBet.toNumber() : table.currentBet;
@@ -341,7 +265,9 @@ const BetControls: React.FC<{
 
   const [raiseAmt, setRaiseAmt] = useState(tableBigBlind * 2);
   const callAmt = Math.min(tableCurrentBet - myPlayer.currentBet.toNumber(), myPlayer.chipCount.toNumber());
-  const canCheck = callAmt <= 0;
+  // Big Blind gets a "check" option on PreFlop even though callAmt > 0
+  // (the BB post is reflected in current_bet but not in player.current_bet per on-chain state)
+  const canCheck = callAmt <= 0 || !!isBigBlindPreflop;
   const minRaise = tableCurrentBet + tableBigBlind;
 
   const quickAmts = [
@@ -496,84 +422,74 @@ const BetControls: React.FC<{
 };
 
 // ===== Main page =====
-// ===== Chat Window =====
-const ChatWindow: React.FC<{
-  messages: ChatMessage[];
-  onSendMessage: (text: string) => void;
-  isMeSeated: boolean;
-}> = ({ messages, onSendMessage, isMeSeated }) => {
-  const [input, setInput] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+// =====================================================================
+// ORACLE SIMULATION HELPERS
+// Because Arcium MPC is not live in the demo, the frontend has to act
+// as the oracle and call the on_community_cards / on_showdown_result
+// callbacks itself, immediately after each matching instruction.
+// =====================================================================
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !isMeSeated) return;
-    onSendMessage(input);
-    setInput('');
-  };
+/** Simulate hole cards for any player — unique per wallet × table × hand */
+function simulateHoleCards(walletBytes: Uint8Array, tableId: string, handNum: number): [number, number] {
+  const suffix = tableId.replace('table-', '');
+  const sb = new TextEncoder().encode(suffix);
+  const tb0 = sb[0] ?? 3;
+  const tb1 = sb[1] ?? 17;
+  const tb2 = sb[2] ?? 31;
+  const c1 = Math.abs((walletBytes[0] ^ walletBytes[4] ^ tb0 ^ (handNum & 0xff))) % 52;
+  const c2r = Math.abs((walletBytes[1] ^ walletBytes[5] ^ tb1 ^ tb2 ^ ((handNum >> 8) & 0xff) ^ 7)) % 52;
+  const c2 = c2r === c1 ? (c2r + 1) % 52 : c2r;
+  return [c1, c2];
+}
 
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', height: '100%',
-      background: 'rgba(10,12,15,0.4)', borderRadius: 12, border: '1px solid var(--border)',
-      overflow: 'hidden', backdropFilter: 'blur(8px)',
-    }}>
-      <div style={{
-        padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
-        fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
-        color: 'var(--arcium-glow)', display: 'flex', justifyContent: 'space-between',
-      }}>
-        <span>Table Log</span>
-        <span style={{ opacity: 0.5 }}>Live</span>
-      </div>
+/** Score a poker hand (higher = better) — checks pairs/sets against 7-card pool */
+function scoreHand(cards: number[]): number {
+  const v = cards.filter(c => c >= 0 && c < 52);
+  if (v.length === 0) return 0;
+  const ranks = v.map(c => c % 13);
+  const suits = v.map(c => Math.floor(c / 13));
+  const rankCnt: Record<number, number> = {};
+  const suitCnt: Record<number, number> = {};
+  ranks.forEach(r => { rankCnt[r] = (rankCnt[r] || 0) + 1; });
+  suits.forEach(s => { suitCnt[s] = (suitCnt[s] || 0) + 1; });
+  const byCount = Object.values(rankCnt).sort((a, b) => b - a);
+  const hasFlush = Object.values(suitCnt).some(n => n >= 5);
+  const sortedRanks = [...new Set(ranks)].sort((a, b) => a - b);
+  let straight = false;
+  for (let i = 0; i <= sortedRanks.length - 5; i++) {
+    if (sortedRanks[i + 4] - sortedRanks[i] === 4) { straight = true; break; }
+  }
+  // Broadway straight (10-J-Q-K-A)
+  if ([0, 9, 10, 11, 12].every(r => sortedRanks.includes(r))) straight = true;
+  const rankMax = Math.max(...ranks);
+  const sum = ranks.reduce((s, r) => s + r, 0);
 
-      <div ref={scrollRef} style={{
-        flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.625rem',
-      }}>
-        {messages.map(m => (
-          <div key={m.id} style={{
-            fontSize: '0.8125rem', lineBreak: 'anywhere',
-            color: m.type === 'system' ? 'var(--gold-2)' : 'rgba(255,255,255,0.8)',
-            fontStyle: m.type === 'system' ? 'italic' : 'normal',
-          }}>
-            {m.type === 'chat' && (
-              <span style={{ fontWeight: 700, color: 'var(--arcium)' }}>{m.sender}: </span>
-            )}
-            {m.text}
-          </div>
-        ))}
-        {messages.length === 0 && (
-          <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.75rem', textAlign: 'center', marginTop: '2rem' }}>
-            No messages yet.
-          </div>
-        )}
-      </div>
+  if (straight && hasFlush) return 8e5 + rankMax;
+  if (byCount[0] === 4) return 7e5 + sum;
+  if (byCount[0] === 3 && byCount[1] === 2) return 6e5 + sum;
+  if (hasFlush) return 5e5 + sum;
+  if (straight) return 4e5 + rankMax;
+  if (byCount[0] === 3) return 3e5 + sum;
+  if (byCount[0] === 2 && byCount[1] === 2) return 2e5 + sum;
+  if (byCount[0] === 2) return 1e5 + sum;
+  return sum;
+}
 
-      <form onSubmit={handleSubmit} style={{ padding: '0.75rem', borderTop: '1px solid var(--border)' }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={isMeSeated ? "Say something..." : "Spectating..."}
-          disabled={!isMeSeated}
-          maxLength={64}
-          style={{
-            width: '100%', background: 'var(--ink-3)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '0.625rem 0.875rem', color: '#fff', fontSize: '0.875rem',
-            outline: 'none', transition: 'border-color 0.2s',
-          }}
-          onFocus={e => e.currentTarget.style.borderColor = 'var(--arcium)'}
-          onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
-        />
-      </form>
-    </div>
-  );
-};
+function handCategoryFromScore(score: number): number {
+  if (score >= 8e5) return 8; // Straight flush
+  if (score >= 7e5) return 7; // Four of a kind
+  if (score >= 6e5) return 6; // Full house
+  if (score >= 5e5) return 5; // Flush
+  if (score >= 4e5) return 4; // Straight
+  if (score >= 3e5) return 3; // Three of a kind
+  if (score >= 2e5) return 2; // Two pair
+  if (score >= 1e5) return 1; // One pair
+  return 0;                   // High card
+}
 
 export const GameTablePage: React.FC = () => {
+
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { connection } = useConnection();
@@ -582,7 +498,6 @@ export const GameTablePage: React.FC = () => {
   const { table, players, myHand, isLoading, connectionMode, refetch } = useTableRealtime(tableId ?? null);
   const { width: windowWidth } = useWindowSize();
   const [isActing, setIsActing] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const prevPhaseRef = useRef<string>('');
   const prevTurnRef = useRef<number | null>(null);
 
@@ -604,16 +519,17 @@ export const GameTablePage: React.FC = () => {
       return [card1, card2 === card1 ? (card2 + 1) % 52 : card2];
     }
 
-    // Debug fallback: derive stable placeholder cards from wallet pubkey bytes
+    // Debug fallback: derive placeholder cards unique per wallet × table × hand.
+    // IMPORTANT: tableId is in the form "table-1771859309616".
+    // The first 6 chars ('table-') are identical across all tables, so we skip them
+    // and use the numeric suffix for entropy.
     if (forceReveal && publicKey) {
-      const bytes = publicKey.toBytes();
-      const c1 = (bytes[0] + bytes[1]) % 52;
-      const c2 = (bytes[2] + bytes[3] + 7) % 52;
-      return [c1, c2 === c1 ? (c2 + 1) % 52 : c2];
+      const hNum = table?.handNumber?.toNumber() || 0;
+      return getStandinHoleCards(publicKey.toBase58(), tableId ?? '', hNum);
     }
 
     return undefined;
-  }, [myHand, publicKey]);
+  }, [myHand, publicKey, tableId, table?.handNumber]);
 
   const program = useMemo(() => {
     const provider = new anchor.AnchorProvider(connection, wallet as any, { commitment: 'confirmed' });
@@ -633,6 +549,139 @@ export const GameTablePage: React.FC = () => {
   );
   // Show the dealing spinner only while we have no cards yet and Arcium hasn't called back
   const isDealing = phase === 'PreFlop' && !myCards && players.some(p => p.wallet.toBase58() === publicKey?.toBase58());
+
+  // ===== ORACLE: Reveal community cards for the given street =====
+  // Simulates the Arcium on_community_cards callback.
+  // fromPhase = the phase BEFORE the advance (PreFlop→Flop, Flop→Turn, Turn→River)
+  const oracleRevealCommunityCards = useCallback(async (
+    fromPhase: string,
+    tablePda: PublicKey,
+    handNum: anchor.BN,
+  ) => {
+    if (!publicKey || !tableId || players.length === 0) return;
+    const handNumber = handNum.toNumber();
+    const deck = buildDeck(tableId, handNumber);
+    // Convention: community cards start at deck index 4 (0-3 are hole pairs for 2 players)
+    // deck[4..6] = flop, deck[7] = turn, deck[8] = river
+    let indices: number[];
+    let values: number[];
+    if (fromPhase === 'PreFlop') {
+      indices = [0, 1, 2];
+      values = [deck[4] ?? 2, deck[5] ?? 16, deck[6] ?? 30];
+    } else if (fromPhase === 'Flop') {
+      indices = [3];
+      values = [deck[7] ?? 44];
+    } else if (fromPhase === 'Turn') {
+      indices = [4];
+      values = [deck[8] ?? 9];
+    } else {
+      return; // River → no community cards; showdown handles it
+    }
+
+    // Use first player as the dummy "calling player" for the ArciumCallback accounts
+    const firstPlayer = players[0];
+    const [handPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('hand'),
+        tablePda.toBuffer(),
+        handNum.toArrayLike(Buffer, 'le', 8),
+        firstPlayer.publicKey.toBuffer(),
+      ],
+      POKER_PROGRAM_ID
+    );
+
+    console.log('[Oracle] Revealing community cards for', fromPhase, '→ indices:', indices, 'values:', values);
+    await (program.methods as any).onCommunityCards(indices, values)
+      .accounts({
+        table: tablePda,
+        arciumMxe: ARCIUM_MXE_PUBKEY,
+        payer: publicKey,
+        encryptedHand: handPda,
+        player: firstPlayer.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+  }, [publicKey, tableId, players, program]);
+
+  // ===== ORACLE: Evaluate hands, pick winner, settle showdown =====
+  // Simulates the Arcium on_showdown_result callback.
+  const oracleSettleShowdown = useCallback(async (
+    tablePda: PublicKey,
+    handNum: anchor.BN,
+    boardCards: number[], // up to 5 community cards (255 = not yet revealed)
+    finalDeck?: number[]  // optional forced deck for sync
+  ) => {
+    if (!publicKey || !tableId || players.length === 0 || !table) return;
+    const handNumber = handNum.toNumber();
+
+    // Fill any missing board cards with simulated values
+    const deck = finalDeck || buildDeck(tableId, handNumber);
+    const board = boardCards.map((c, i) =>
+      (c === 255 || c === 0) ? (deck[4 + i] ?? (i * 7 + 2)) : c
+    );
+
+    // Evaluate each active player's hand
+    const activePlayers = players.filter(p => p.isActive || p.isAllIn);
+    let bestScore = -1;
+    let winnerIdx = 0;
+    activePlayers.forEach((p, idx) => {
+      const wb = p.wallet.toBytes();
+      const [h1, h2] = simulateHoleCards(wb, tableId, handNumber);
+      const score = scoreHand([h1, h2, ...board]);
+      console.log(`[Oracle] Player ${p.playerId} (${p.wallet.toBase58().slice(0, 8)}) score: ${score}`);
+      if (score > bestScore) { bestScore = score; winnerIdx = idx; }
+    });
+
+    const winner = activePlayers[winnerIdx];
+    if (!winner) return;
+
+    const pot = table.pot.toNumber ? table.pot.toNumber() : table.pot;
+    const winnersArr = new Array(6).fill(255);
+    winnersArr[0] = winner.playerId;
+    const payoutsArr = new Array(6).fill(new anchor.BN(0));
+    payoutsArr[0] = new anchor.BN(pot);
+
+    const [resultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('result'), tablePda.toBuffer(), handNum.toArrayLike(Buffer, 'le', 8)],
+      POKER_PROGRAM_ID
+    );
+
+    const finalBoard: [number, number, number, number, number] = [
+      board[0] ?? deck[4] ?? 2,
+      board[1] ?? deck[5] ?? 16,
+      board[2] ?? deck[6] ?? 30,
+      board[3] ?? deck[7] ?? 44,
+      board[4] ?? deck[8] ?? 9,
+    ];
+
+    console.log(`[Oracle] Winner: player ${winner.playerId}, score: ${bestScore}, hand: ${handCategoryFromScore(bestScore)}, board:`, finalBoard);
+
+    const dummyProof = new Array(256).fill(0);
+    const randomHashArray = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256));
+
+    await (program.methods as any).onShowdownResult(
+      winnersArr,
+      1,
+      payoutsArr,
+      handCategoryFromScore(bestScore),
+      finalBoard,
+      dummyProof,
+      randomHashArray,
+    )
+      .accounts({
+        table: tablePda,
+        gameResult: resultPda,
+        arciumMxe: ARCIUM_MXE_PUBKEY,
+        payer: publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
+      .rpc();
+
+    console.log('[Oracle] Showdown settled — hand complete');
+  }, [publicKey, tableId, players, program, table]);
+
+
 
   const handleJoin = useCallback(async (seatIndex: number) => {
     if (!publicKey || !tableId) return;
@@ -712,6 +761,16 @@ export const GameTablePage: React.FC = () => {
       const typeMap: Record<string, number> = { fold: 0, check: 1, call: 2, raise: 3, allin: 4 };
       const actionType = typeMap[type] ?? 1;
 
+      // The Rust program expects raise_amount as the INCREMENT above the current table bet,
+      // NOT the total raise-to amount that the UI slider/button shows.
+      // e.g. if currentBet=50 and user clicks "Raise to 200", we pass 200-50=150.
+      let programAmount = amount ?? 0;
+      if (type === 'raise' && amount !== undefined) {
+        const tableCurBet = table.currentBet.toNumber ? table.currentBet.toNumber() : table.currentBet;
+        programAmount = Math.max(0, amount - tableCurBet);
+        console.log(`[GameTable] Raise: UI amount=${amount}, tableBet=${tableCurBet}, increment sent=${programAmount}`);
+      }
+
       // Always re-derive the player PDA from canonical seeds so we never pass
       // a stale cache address → fixes AccountDidNotDeserialize on player account.
       const [playerPda] = PublicKey.findProgramAddressSync(
@@ -744,9 +803,9 @@ export const GameTablePage: React.FC = () => {
         POKER_PROGRAM_ID
       );
 
-      console.log('[GameTable] Submitting action:', type, '| playerPda:', playerPda.toBase58(), '| actionPda:', actionPda.toBase58());
+      console.log('[GameTable] Submitting action:', type, 'amount:', programAmount, '| playerPda:', playerPda.toBase58());
 
-      await (program.methods as any).submitAction(actionType, new anchor.BN(amount ?? 0))
+      await (program.methods as any).submitAction(actionType, new anchor.BN(programAmount))
         .accounts({
           table: tablePda,
           player: playerPda,
@@ -863,9 +922,10 @@ export const GameTablePage: React.FC = () => {
 
       await (program.methods as any).onShowdownResult(
         Array.from(winners),
-        1, // winner_count
+        1,          // winner_count
         payouts,
-        finalBoard,
+        0,          // winning_hand_category (u8) — required positional arg
+        finalBoard, // final_community_cards
         new Array(256).fill(0), // Dummy proof
         new Array(32).fill(0)   // Dummy proof hash
       )
@@ -927,37 +987,6 @@ export const GameTablePage: React.FC = () => {
     }
   }, [phase, handleTriggerShowdown, handleDealCommunityCards]);
 
-  const handleReact = useCallback(async (reactionType: number) => {
-    if (!publicKey || !myPlayer) return;
-    try {
-      // Non-blocking call for UX
-      (program.methods as any).submitReaction(reactionType)
-        .accounts({
-          player: myPlayer.publicKey,
-          wallet: publicKey,
-        })
-        .rpc();
-
-      // OPTIONAL: Optimistic update can happen here if needed
-      // But let's trust the WebSocket to push the state back fast
-    } catch (err) {
-      console.error('[GameTable] Reaction failed:', err);
-    }
-  }, [publicKey, myPlayer, program]);
-
-  const handleSendMessage = useCallback(async (text: string) => {
-    if (!publicKey || !myPlayer) return;
-    try {
-      (program.methods as any).sendMessage(text)
-        .accounts({
-          player: myPlayer.publicKey,
-          wallet: publicKey,
-        })
-        .rpc();
-    } catch (err) {
-      console.error('[GameTable] Chat failed:', err);
-    }
-  }, [publicKey, myPlayer, program]);
 
   // Log automated table actions
   useEffect(() => {
@@ -965,57 +994,14 @@ export const GameTablePage: React.FC = () => {
 
     const phase = parseGamePhase(table.phase);
     if (phase !== prevPhaseRef.current) {
-      if (phase !== 'Waiting') {
-        const entry: ChatMessage = {
-          id: `sys-${Date.now()}`,
-          type: 'system',
-          sender: 'Dealer',
-          text: `Street: ${phase}`,
-          timestamp: Date.now(),
-        };
-        setChatMessages(prev => [...prev.slice(-49), entry]);
-      }
       prevPhaseRef.current = phase;
     }
 
     if (table.currentTurn !== prevTurnRef.current) {
-      const activePlayer = players.find(p => p.playerId === table.currentTurn);
-      if (activePlayer && phase !== 'Waiting' && phase !== 'Complete') {
-        const entry: ChatMessage = {
-          id: `sys-turn-${Date.now()}`,
-          type: 'system',
-          sender: 'Dealer',
-          text: `Action to ${shortenWallet(activePlayer.wallet, 4)}`,
-          timestamp: Date.now(),
-        };
-        setChatMessages(prev => [...prev.slice(-49), entry]);
-      }
       prevTurnRef.current = table.currentTurn;
     }
   }, [table?.phase, table?.currentTurn, players]);
 
-  // Sync incoming on-chain messages to chat log
-  useEffect(() => {
-    players.forEach(p => {
-      const msg = bytesToString(p.lastMessage);
-      if (msg && msg.trim().length > 0) {
-        const timestamp = p.lastMessageTs.toNumber ? p.lastMessageTs.toNumber() * 1000 : 0;
-        // Only add if not already in log (using timestamp + text as heuristic)
-        setChatMessages(prev => {
-          const exists = prev.some(m => m.timestamp === timestamp && m.text === msg);
-          if (exists) return prev;
-
-          return [...prev.slice(-49), {
-            id: `msg-${p.wallet.toBase58()}-${timestamp}`,
-            type: 'chat' as const,
-            sender: shortenWallet(p.wallet, 4),
-            text: msg,
-            timestamp,
-          }].sort((a, b) => a.timestamp - b.timestamp);
-        });
-      }
-    });
-  }, [players]);
 
   // Auto-navigation to results when game over
   useEffect(() => {
@@ -1026,48 +1012,147 @@ export const GameTablePage: React.FC = () => {
     }
   }, [table, tableId, navigate]);
 
-  // ===== AUTO-ADVANCE =====
-  // When all players have acted (currentTurn flips to 255), automatically
-  // call dealCommunityCards or triggerShowdown so no manual button is needed.
-  const autoAdvancingRef = useRef(false);
+  // ===== AUTO-WIN: last player standing (everyone else folded) =====
+  // The on-chain program still needs deal_community_cards + trigger_showdown even
+  // when only 1 active player is left. We fast-forward through all remaining streets,
+  // calling the oracle callbacks at each step so community cards appear on screen.
+  const autoWinRef = useRef('');
   useEffect(() => {
     if (!table || !publicKey || !tableId) return;
     const currentPhase = parseGamePhase(table.phase);
-    const bettingDone = table.currentTurn === 255;
-    const advanceable = ['PreFlop', 'Flop', 'Turn', 'River'].includes(currentPhase);
+    if (!['PreFlop', 'Flop', 'Turn', 'River'].includes(currentPhase)) return;
+    if (autoWinRef.current === currentPhase) return;
 
-    if (!bettingDone || !advanceable || autoAdvancingRef.current) return;
+    // Fast-forward to showdown if everyone but one player has folded.
+    const activePlayersDuringHand = players.filter(p => p.isActive);
+    const isOnlyOneLeft = activePlayersDuringHand.length === 1 && players.length > 1;
 
-    autoAdvancingRef.current = true;
-    console.log(`[GameTable] Auto-advancing from ${currentPhase}`);
+    if (!isOnlyOneLeft) return;
+
+    autoWinRef.current = currentPhase;
+    console.log('[GameTable:AutoWin] Only 1 player left — fast-forwarding to showdown');
 
     const run = async () => {
       try {
         const tablePda = deriveTablePDA(tableId);
+        const playerAccs = players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true }));
+        const handNum = table.handNumber;
+        const deck = buildDeck(tableId || '', handNum.toNumber());
+
+        // Advance through remaining streets, revealing cards at each step
+        const orderedPhases: string[] = [];
+        if (currentPhase === 'PreFlop') orderedPhases.push('PreFlop', 'Flop', 'Turn');
+        else if (currentPhase === 'Flop') orderedPhases.push('Flop', 'Turn');
+        else if (currentPhase === 'Turn') orderedPhases.push('Turn');
+        // River → go straight to showdown
+
+        for (const fromPhase of orderedPhases) {
+          await (program.methods as any).dealCommunityCards()
+            .accounts({ table: tablePda, payer: publicKey })
+            .remainingAccounts(playerAccs)
+            .rpc();
+          await oracleRevealCommunityCards(fromPhase, tablePda, handNum);
+          await new Promise(r => setTimeout(r, 600));
+        }
+
+        await (program.methods as any).triggerShowdown()
+          .accounts({ table: tablePda, payer: publicKey })
+          .remainingAccounts(playerAccs)
+          .rpc();
+        await new Promise(r => setTimeout(r, 800));
+
+        // Settle — sole active player wins the pot
+        // Pass the same deck we used to reveal cards to ensure perfect sync
+        await oracleSettleShowdown(tablePda, handNum, communityCards, deck);
+        refetch();
+      } catch (err: any) {
+        console.error('[GameTable:AutoWin] Failed:', err);
+        autoWinRef.current = ''; // allow retry
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players.map(p => `${p.isActive}-${p.isAllIn}`).join(','), table?.phase]);
+
+  // ===== AUTO-ADVANCE =====
+  // Mirrors the on-chain is_betting_complete() condition EXACTLY:
+  //   - turn=255 means everyone is all-in (no one can act)
+  //   - playersActed >= playersToAct means normal betting is finished
+  //   - activeNonAllIn <= 1 means only 0 or 1 player can still act
+  //
+  // When the condition is met, calls deal_community_cards (Flop/Turn/River)
+  // or trigger_showdown (River done). Then calls oracle callbacks as a
+  // FALLBACK — if Arcium fires its own callbacks first, the try-catch
+  // swallows the duplicate-account error and Arcium's values win.
+  const autoAdvancingRef = useRef<string>('');
+  useEffect(() => {
+    if (!table || !publicKey || !tableId) return;
+    const currentPhase = parseGamePhase(table.phase);
+    if (!['PreFlop', 'Flop', 'Turn', 'River'].includes(currentPhase)) return;
+    if (autoAdvancingRef.current === currentPhase) return;
+
+    // Mirror the on-chain is_betting_complete logic
+    const activeNonAllIn = players.filter(p => p.isActive && !p.isAllIn).length;
+    const allInOnly = activeNonAllIn <= 1;
+    const normalBettingDone =
+      table.currentTurn === 255 ||
+      (table.playersToAct > 0 && table.playersActed >= table.playersToAct);
+    const bettingDone = allInOnly || normalBettingDone;
+
+    if (!bettingDone) return;
+
+    autoAdvancingRef.current = currentPhase;
+    console.log(`[GameTable:AutoAdvance] Street ${currentPhase} done — advancing (allInOnly=${allInOnly}, acted=${table.playersActed}/${table.playersToAct})`);
+
+    const run = async () => {
+      try {
+        const tablePda = deriveTablePDA(tableId);
+        const playerAccs = players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true }));
+        const handNum = table.handNumber;
+
         if (currentPhase === 'River') {
           await (program.methods as any).triggerShowdown()
             .accounts({ table: tablePda, payer: publicKey })
-            .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
+            .remainingAccounts(playerAccs)
             .rpc();
+
+          // Fallback oracle: if Arcium doesn't settle within 3 s, do it ourselves.
+          // If Arcium already fired, the duplicate init error is caught and ignored.
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            await oracleSettleShowdown(tablePda, handNum, communityCards);
+          } catch (e: any) {
+            console.log('[Oracle] Showdown already settled by Arcium (or error):', e.message);
+          }
         } else {
           await (program.methods as any).dealCommunityCards()
             .accounts({ table: tablePda, payer: publicKey })
-            .remainingAccounts(players.map(p => ({ pubkey: p.publicKey, isSigner: false, isWritable: true })))
+            .remainingAccounts(playerAccs)
             .rpc();
+
+          // Fallback oracle: feed community cards if Arcium hasn't yet.
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            await oracleRevealCommunityCards(currentPhase, tablePda, handNum);
+          } catch (e: any) {
+            console.log('[Oracle] Community cards already revealed by Arcium (or error):', e.message);
+          }
         }
-        console.log('[GameTable] Phase advanced automatically');
+
         refetch();
       } catch (err: any) {
-        console.error('[GameTable] Auto-advance failed:', err);
-      } finally {
-        // Allow re-trigger on next phase change
-        setTimeout(() => { autoAdvancingRef.current = false; }, 3000);
+        console.error('[GameTable:AutoAdvance] Failed:', err);
+        autoAdvancingRef.current = ''; // allow retry
       }
     };
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table?.currentTurn, table?.phase]);
+  }, [table?.currentTurn, table?.phase, table?.playersActed, table?.playersToAct]);
+
+
+
+
 
   if (!table && !isLoading) {
     return (
@@ -1176,16 +1261,16 @@ export const GameTablePage: React.FC = () => {
 
             {/* Community cards */}
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-              {communityCards.map((val: any, i: number) => {
-                const flopped =
-                  (i < 3 && phase !== 'PreFlop' && phase !== 'Waiting') ||
-                  (i === 3 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
-                  (i === 4 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
-                // Stand-in values spread across different ranks AND suits so cards look distinct
-                const STANDIN = [2, 16, 30, 44, 9]; // spades/hearts/diamonds/clubs mix
-                const displayVal = flopped ? (val === 255 ? STANDIN[i] : val) : -1;
-                return <PlayingCard key={i} value={displayVal} size="sm" />;
-              })}
+              {(() => {
+                const hNum = table?.handNumber?.toNumber() || 0;
+                const STANDIN = getStandinCards(tableId, hNum);
+                const cards: number[] = communityCards || [255, 255, 255, 255, 255];
+                return cards.map((v: number, i: number) => {
+                  const flopped = isCardRevealed(i, phase);
+                  const displayVal = flopped ? (v === 255 ? STANDIN[i] : v) : 255;
+                  return <PlayingCard key={i} value={displayVal} size="sm" animate={flopped} />;
+                });
+              })()}
             </div>
 
             {/* Pot */}
@@ -1227,42 +1312,20 @@ export const GameTablePage: React.FC = () => {
             }
             const isThisTurn = p?.playerId === table?.currentTurn;
             return (
-              <div key={i} style={{ position: 'absolute', ...pos as any, zIndex: isThisTurn ? 20 : 10 }}>
-                {/* Hole cards for hero */}
-                {isMeLocal && p.isActive && myCards?.length === 2 && (
-                  <div style={{ display: 'flex', gap: '0.25rem', marginBottom: 2, justifyContent: 'center' }}>
-                    <PlayingCard value={myCards[0]} size="sm" />
-                    <PlayingCard value={myCards[1]} size="sm" />
-                  </div>
-                )}
-                <div style={{
-                  background: isThisTurn ? 'rgba(0,229,176,0.15)' : 'rgba(10,12,15,0.88)',
-                  border: `1.5px solid ${isThisTurn ? 'rgba(0,229,176,0.5)' : isMeLocal ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                  borderRadius: 8, padding: '0.3rem 0.5rem',
-                  backdropFilter: 'blur(12px)', minWidth: 72, textAlign: 'center',
-                  boxShadow: isThisTurn ? '0 0 20px rgba(0,229,176,0.25)' : 'none',
-                  opacity: !p.isActive ? 0.5 : 1,
-                }}>
-                  <div style={{ fontSize: '0.6rem', color: isMeLocal ? 'var(--gold)' : 'rgba(255,255,255,0.5)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                    {isMeLocal ? 'You' : shortenWallet(p.wallet, 3)}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: p.chipCount.toNumber() < 200 ? 'var(--red)' : '#fff' }}>
-                    {formatChips(p.chipCount)}
-                  </div>
-                  {p.isAllIn && <div style={{ fontSize: '0.55rem', color: 'var(--red)', fontWeight: 700 }}>ALL IN</div>}
-                  {!p.isActive && <div style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.35)' }}>FOLDED</div>}
-                </div>
-                {/* Dealer chip */}
-                {table && i === table.dealerSeat && (
-                  <div style={{
-                    position: 'absolute', top: -8, left: -8,
-                    width: 18, height: 18, borderRadius: '50%',
-                    background: 'var(--gold)', color: '#0a0c0f',
-                    fontSize: '0.55rem', fontWeight: 800,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>D</div>
-                )}
-              </div>
+              <PlayerSeat
+                player={p}
+                seatIndex={i}
+                isMyTurn={p?.playerId === table?.currentTurn}
+                isMe={isMeLocal}
+                myCards={isMeLocal ? myCards : undefined}
+                lastActionTs={table ? table.lastActionTs : 0}
+                gamePhase={phase}
+                onJoin={handleJoin}
+                table={table}
+                communityCards={communityCards}
+                pos={MOBILE_SEAT_POSITIONS[i]}
+                tableId={tableId ?? ''}
+              />
             );
           })}
 
@@ -1310,11 +1373,24 @@ export const GameTablePage: React.FC = () => {
           background: 'rgba(10,12,15,0.95)', borderTop: '1px solid var(--border-bright)',
           backdropFilter: 'blur(16px)',
         }}>
-          {isMyTurn && myPlayer && table ? (
-            <div style={{ padding: '0.625rem' }}>
-              <BetControls table={table} myPlayer={myPlayer} onAction={handleAction} isLoading={isActing} />
-            </div>
-          ) : (
+          {isMyTurn && myPlayer && table ? (() => {
+            const activePlayers = players.filter(p => p.isActive);
+            const bbIndex = (table.dealerSeat + 2) % (activePlayers.length || 1);
+            const bbPlayer = activePlayers.find(p => p.seatIndex === bbIndex);
+            const isBigBlindPreflop = phase === 'PreFlop' && bbPlayer?.wallet.toBase58() === publicKey?.toBase58();
+            return (
+              <div style={{ padding: '0.625rem' }}>
+                {/* Hero hole cards in action bar for better visibility */}
+                <div style={{
+                  display: 'flex', justifyContent: 'center', gap: '0.625rem', marginBottom: '0.625rem'
+                }}>
+                  <PlayingCard value={myCards?.[0] ?? 255} size="md" animate />
+                  <PlayingCard value={myCards?.[1] ?? 255} size="md" animate />
+                </div>
+                <BetControls table={table} myPlayer={myPlayer} onAction={handleAction} isLoading={isActing} isBigBlindPreflop={isBigBlindPreflop} />
+              </div>
+            );
+          })() : (
             <div style={{
               padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
@@ -1409,24 +1485,23 @@ export const GameTablePage: React.FC = () => {
                 }}>
                   {/* Community Cards */}
                   <div style={{ position: 'relative', zIndex: 10, display: 'flex', gap: '0.5rem' }}>
-                    {communityCards.map((val: any, i: number) => {
-                      const shouldReveal =
-                        forceReveal ||
-                        (i < 3 && phase !== 'PreFlop' && phase !== 'Waiting') ||
-                        (i === 3 && (phase === 'Turn' || phase === 'River' || phase === 'Showdown' || phase === 'Complete')) ||
-                        (i === 4 && (phase === 'River' || phase === 'Showdown' || phase === 'Complete'));
-                      // Stand-in values spread across distinct ranks AND suits
-                      const STANDIN = [2, 16, 30, 44, 9]; // A♠ 4♥ 5♦ 7♣ 10♠
-                      const displayVal = shouldReveal && val === 255 ? STANDIN[i] : val;
-                      return (
-                        <PlayingCard
-                          key={i}
-                          value={shouldReveal ? displayVal : 255}
-                          size="lg"
-                          animate={shouldReveal}
-                        />
-                      );
-                    })}
+                    {(() => {
+                      const hNum = table?.handNumber?.toNumber() || 0;
+                      const STANDIN = getStandinCards(tableId, hNum);
+                      return [0, 1, 2, 3, 4].map((i) => {
+                        const val = communityCards[i] ?? 255;
+                        const shouldReveal = isCardRevealed(i, phase);
+                        const displayVal = shouldReveal ? (val === 255 ? STANDIN[i] : val) : 255;
+                        return (
+                          <PlayingCard
+                            key={i}
+                            value={displayVal}
+                            size="lg"
+                            animate={shouldReveal}
+                          />
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* Total Pot */}
@@ -1455,12 +1530,13 @@ export const GameTablePage: React.FC = () => {
                         isMyTurn={p?.playerId === table?.currentTurn}
                         isMe={isMeLocal}
                         myCards={isMeLocal ? myCards : undefined}
-                        myHand={isMeLocal ? myHand : undefined}
                         lastActionTs={table ? table.lastActionTs : 0}
                         gamePhase={phase}
                         onJoin={handleJoin}
-                        onReact={handleReact}
                         table={table}
+                        communityCards={communityCards}
+                        pos={SEAT_POSITIONS[i]}
+                        tableId={tableId ?? ''}
                       />
                     );
                   })}
@@ -1503,17 +1579,24 @@ export const GameTablePage: React.FC = () => {
           })()}
 
           {/* Action Overlay Bottom */}
-          {isMyTurn && myPlayer && table && (
-            <div style={{
-              position: 'absolute', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
-              width: '100%', maxWidth: 560, zIndex: 200,
-            }}>
-              <BetControls table={table} myPlayer={myPlayer} onAction={handleAction} isLoading={isActing} />
-            </div>
-          )}
+          {isMyTurn && myPlayer && table && (() => {
+            // Determine if this player is the Big Blind on PreFlop so they can Check
+            const activePlayers = players.filter(p => p.isActive);
+            const bbIndex = (table.dealerSeat + 2) % (activePlayers.length || 1);
+            const bbPlayer = activePlayers.find(p => p.seatIndex === bbIndex);
+            const isBigBlindPreflop = phase === 'PreFlop' && bbPlayer?.wallet.toBase58() === publicKey?.toBase58();
+            return (
+              <div style={{
+                position: 'absolute', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+                width: '100%', maxWidth: 560, zIndex: 200,
+              }}>
+                <BetControls table={table} myPlayer={myPlayer} onAction={handleAction} isLoading={isActing} isBigBlindPreflop={isBigBlindPreflop} />
+              </div>
+            );
+          })()}
         </div>
 
-        {/* Right: Sidebar (Log and Chat) */}
+        {/* Right: Sidebar */}
         <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {myPlayer && (
             <div style={{
@@ -1529,14 +1612,6 @@ export const GameTablePage: React.FC = () => {
               </div>
             </div>
           )}
-
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <ChatWindow
-              messages={chatMessages}
-              onSendMessage={handleSendMessage}
-              isMeSeated={!!myPlayer}
-            />
-          </div>
         </div>
       </div>
     </Layout>

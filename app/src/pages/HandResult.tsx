@@ -10,6 +10,7 @@ import { GameResultData, HAND_NAMES, formatChips, shortenWallet, cardToDisplay }
 import { POKER_PROGRAM_ID } from '../lib/constants';
 import { deriveTablePDA } from '../hooks/useTableRealtime';
 import idl from '../idl/encrypted_poker.json';
+import { getStandinCards, getStandinHoleCards } from '../lib/card-utils';
 
 const WinnerCard: React.FC<{
   winner: string; payout: number; handCategory: number;
@@ -174,10 +175,9 @@ export const HandResultPage: React.FC = () => {
             setMyHandCards([c1, c2 === c1 ? (c2 + 1) % 52 : c2]);
           } catch (e) {
             // No hand account — derive placeholder cards from wallet pubkey bytes
-            const bytes = publicKey.toBytes();
-            const c1 = (bytes[0] + bytes[1]) % 52;
-            const c2 = (bytes[2] + bytes[3] + 7) % 52;
-            setMyHandCards([c1, c2 === c1 ? (c2 + 1) % 52 : c2]);
+            const hNum = parseInt(handNumber || '0');
+            const [c1, c2] = getStandinHoleCards(publicKey.toBase58(), tableId || '', hNum);
+            setMyHandCards([c1, c2]);
             console.log('[HandResult] No hand found — showing placeholder hole cards');
           }
         }
@@ -295,10 +295,11 @@ export const HandResultPage: React.FC = () => {
               <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>Board</div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {(() => {
-                  const STANDIN = [2, 16, 30, 44, 9];
+                  const hNum = parseInt(handNumber || '0');
+                  const STANDIN = getStandinCards(tableId, hNum);
                   const cards: number[] = result.communityCards || (result as any).community_cards || [255, 255, 255, 255, 255];
                   return cards.map((v: number, i: number) => (
-                    <PlayingCard key={i} value={v === 255 ? STANDIN[i] : v} size="lg" animate />
+                    <PlayingCard key={i} value={(v === 255 || v === 0) ? STANDIN[i] : v} size="lg" animate />
                   ));
                 })()}
               </div>
