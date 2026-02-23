@@ -55,7 +55,8 @@ const PreviewTableCard: React.FC<{ form: any }> = ({ form }) => (
     padding: '1.5rem',
     borderRadius: 16,
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 340,
+    margin: '0 auto',
     boxShadow: '0 20px 50px rgba(0,0,0,0.5), var(--shadow-gold)',
     border: '1px solid rgba(201,168,76,0.2)',
     position: 'sticky',
@@ -201,8 +202,8 @@ export const CreateTablePage: React.FC = () => {
           ← Back to Lobby
         </button>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '4rem', alignItems: 'start' }}>
-          <div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4rem', alignItems: 'flex-start' }}>
+          <div style={{ flex: '1 1 340px', minWidth: 0 }}>
             <h1 className="animate-fade-up gradient-text" style={{ marginBottom: '0.5rem', fontSize: '2.5rem' }}>
               Create Table
             </h1>
@@ -237,7 +238,7 @@ export const CreateTablePage: React.FC = () => {
 
               <div className="animate-fade-up delay-2">
                 <FormSection title="Stakes" subtitle="Starting stack is fixed at 2,000 chips">
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.75rem' }}>
                     {BLIND_PRESETS.map(p => {
                       const selected = form.smallBlind === p.sb;
                       return (
@@ -286,7 +287,7 @@ export const CreateTablePage: React.FC = () => {
 
               <div className="animate-fade-up delay-3">
                 <FormSection title="Configuration">
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '1rem' }}>
                     <Field label="Min Players">
                       <select className="input" value={form.minPlayers} onChange={e => set('minPlayers', +e.target.value)}>
                         {[2, 3, 4].map(n => <option key={n} value={n}>{n}</option>)}
@@ -325,13 +326,17 @@ export const CreateTablePage: React.FC = () => {
                     </div>
                   </label>
                   {form.tokenGated && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
-                      <Field label="Mint Address">
-                        <input className="input mono" placeholder="Token Mint..." value={form.tokenMint} onChange={e => set('tokenMint', e.target.value)} />
-                      </Field>
-                      <Field label="Min Amount">
-                        <input type="number" className="input" value={form.tokenAmount} onChange={e => set('tokenAmount', +e.target.value)} />
-                      </Field>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
+                      <div style={{ flex: '2 1 180px' }}>
+                        <Field label="Mint Address">
+                          <input className="input mono" placeholder="Token Mint..." value={form.tokenMint} onChange={e => set('tokenMint', e.target.value)} />
+                        </Field>
+                      </div>
+                      <div style={{ flex: '1 1 80px' }}>
+                        <Field label="Min Amount">
+                          <input type="number" className="input" value={form.tokenAmount} onChange={e => set('tokenAmount', +e.target.value)} />
+                        </Field>
+                      </div>
                     </div>
                   )}
                 </FormSection>
@@ -352,7 +357,7 @@ export const CreateTablePage: React.FC = () => {
             </form>
           </div>
 
-          <div className="animate-fade-up delay-2" style={{ position: 'sticky', top: '2rem' }}>
+          <div className="animate-fade-up delay-2" style={{ flex: '1 1 340px', position: 'sticky', top: '2rem' }}>
             <div className="subtle" style={{ fontSize: '0.75rem', marginBottom: '1rem', textAlign: 'center', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               Live Preview
             </div>
